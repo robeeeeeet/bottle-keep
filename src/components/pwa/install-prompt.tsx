@@ -19,7 +19,9 @@ function getIsStandalone(): boolean {
 
 function getIsIOS(): boolean {
   if (typeof navigator === "undefined") return false;
-  return /iPad|iPhone|iPod/.test(navigator.userAgent) && !("MSStream" in window);
+  return (
+    /iPad|iPhone|iPod/.test(navigator.userAgent) && !("MSStream" in window)
+  );
 }
 
 export function InstallPrompt() {
@@ -33,7 +35,6 @@ export function InstallPrompt() {
 
   useEffect(() => {
     if (isStandalone) return;
-
 
     // 既に非表示設定されているかチェック
     const dismissed = localStorage.getItem("pwa-install-dismissed");
@@ -96,42 +97,70 @@ export function InstallPrompt() {
 
   return (
     <div className="fixed bottom-24 left-4 right-4 z-50 animate-in slide-in-from-bottom-4 fade-in duration-300">
-      <div className="bg-primary text-primary-foreground rounded-lg p-4 shadow-lg">
-        <div className="flex items-start gap-3">
-          <span className="text-3xl">🍶</span>
-          <div className="flex-1 min-w-0">
-            <h3 className="font-bold text-sm">アプリをインストール</h3>
-            {isIOS ? (
-              <p className="text-xs opacity-80 mt-1">
-                <span className="inline-flex items-center gap-1">
-                  <ShareIcon className="w-3 h-3" />
-                  共有
-                </span>
-                →「ホーム画面に追加」でアプリとして使えます
-              </p>
-            ) : (
-              <p className="text-xs opacity-80 mt-1">
-                ホーム画面に追加して、いつでもすぐアクセス
-              </p>
-            )}
-          </div>
-          <button
-            onClick={handleDismiss}
-            className="p-1 opacity-60 hover:opacity-100 transition-opacity"
-            aria-label="閉じる"
-          >
-            <XIcon className="w-5 h-5" />
-          </button>
+      <div className="relative overflow-hidden rounded-xl shadow-lg">
+        {/* 背景グラデーション */}
+        <div className="absolute inset-0 bg-gradient-to-br from-primary via-primary to-primary-dark" />
+
+        {/* 市松模様の装飾（左上） */}
+        <div className="absolute -top-4 -left-4 w-24 h-24 opacity-10">
+          <div className="pattern-ichimatsu w-full h-full" />
         </div>
 
-        {!isIOS && deferredPrompt && (
-          <button
-            onClick={handleInstall}
-            className="w-full mt-3 py-2.5 bg-gold text-primary rounded-lg font-medium text-sm hover:opacity-90 transition-opacity"
-          >
-            インストール
-          </button>
-        )}
+        {/* コンテンツ */}
+        <div className="relative p-4">
+          <div className="flex items-start gap-3">
+            {/* アイコン */}
+            <div className="w-12 h-12 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0">
+              <span className="text-2xl">🍶</span>
+            </div>
+
+            {/* テキスト */}
+            <div className="flex-1 min-w-0">
+              <h3 className="font-bold text-primary-foreground text-sm">
+                アプリをインストール
+              </h3>
+              {isIOS ? (
+                <p className="text-xs text-primary-foreground/70 mt-1 leading-relaxed">
+                  <span className="inline-flex items-center gap-1 text-gold font-medium">
+                    <ShareIcon className="w-3 h-3" />
+                    共有
+                  </span>
+                  {" → "}
+                  <span className="text-primary-foreground/90">
+                    「ホーム画面に追加」
+                  </span>
+                  でアプリとして使えます
+                </p>
+              ) : (
+                <p className="text-xs text-primary-foreground/70 mt-1">
+                  ホーム画面に追加して、いつでもすぐアクセス
+                </p>
+              )}
+            </div>
+
+            {/* 閉じるボタン */}
+            <button
+              onClick={handleDismiss}
+              className="p-1.5 rounded-lg text-primary-foreground/50 hover:text-primary-foreground hover:bg-white/10 transition-all"
+              aria-label="閉じる"
+            >
+              <XIcon className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* インストールボタン（iOS以外） */}
+          {!isIOS && deferredPrompt && (
+            <button
+              onClick={handleInstall}
+              className="w-full mt-4 py-3 btn-gold rounded-lg font-bold text-sm transition-all active:scale-[0.98]"
+            >
+              インストール
+            </button>
+          )}
+        </div>
+
+        {/* 金色のトップライン */}
+        <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-gold to-transparent" />
       </div>
     </div>
   );
@@ -157,9 +186,13 @@ function XIcon({ className }: { className?: string }) {
 
 function ShareIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} fill="currentColor" viewBox="0 0 24 24">
-      <path d="M12 2l-1.41 1.41L15.17 8H4v2h11.17l-4.58 4.59L12 16l6-6-6-6z" />
-      <path d="M4 18h16v2H4z" />
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M12 4v12m0-12L8 8m4-4l4 4"
+      />
     </svg>
   );
 }

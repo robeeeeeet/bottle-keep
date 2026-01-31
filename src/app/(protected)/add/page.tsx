@@ -41,7 +41,14 @@ function ComponentLoader() {
   );
 }
 
-type Step = "select" | "photo" | "manual" | "analyzing" | "confirm" | "candidates" | "review";
+type Step =
+  | "select"
+  | "photo"
+  | "manual"
+  | "analyzing"
+  | "confirm"
+  | "candidates"
+  | "review";
 
 // 元の検索パラメータを保持する型
 type OriginalQuery =
@@ -56,7 +63,9 @@ export default function AddPage() {
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   // 元の検索クエリを保持（代替候補取得時に使用）
-  const [originalQuery, setOriginalQuery] = useState<OriginalQuery | null>(null);
+  const [originalQuery, setOriginalQuery] = useState<OriginalQuery | null>(
+    null
+  );
 
   // 写真アップロード完了時 → Geminiで分析
   const handlePhotoUploaded = async (url: string) => {
@@ -207,175 +216,296 @@ export default function AddPage() {
     }
   };
 
+  // ステップに応じたヘッダータイトル
+  const getHeaderTitle = () => {
+    switch (step) {
+      case "select":
+        return "お酒を追加";
+      case "photo":
+        return "写真を撮影";
+      case "manual":
+        return "銘柄を入力";
+      case "analyzing":
+        return "分析中";
+      case "confirm":
+        return "銘柄を確認";
+      case "candidates":
+        return "銘柄を選択";
+      case "review":
+        return "情報を確認";
+      default:
+        return "お酒を追加";
+    }
+  };
+
   return (
-    <div className="px-4 pt-4">
+    <div className="min-h-screen">
       {/* ヘッダー */}
-      <header className="flex items-center mb-6">
-        {step !== "select" && step !== "analyzing" && (
-          <button
-            onClick={handleBack}
-            className="mr-3 p-1 -ml-1 text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={2}
-              stroke="currentColor"
-              className="w-6 h-6"
+      <header className="header-japanese sticky top-0 z-40 px-4 py-4">
+        <div className="flex items-center">
+          {step !== "select" && step !== "analyzing" && (
+            <button
+              onClick={handleBack}
+              className="mr-3 p-2 -ml-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-all"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M15.75 19.5L8.25 12l7.5-7.5"
-              />
-            </svg>
-          </button>
-        )}
-        <h1 className="text-2xl font-bold text-primary">
-          {step === "select" && "お酒を追加"}
-          {step === "photo" && "写真を撮影"}
-          {step === "manual" && "銘柄を入力"}
-          {step === "analyzing" && "分析中..."}
-          {step === "confirm" && "銘柄を確認"}
-          {step === "candidates" && "銘柄を選択"}
-          {step === "review" && "情報を確認"}
-        </h1>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={2}
+                stroke="currentColor"
+                className="w-5 h-5"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M15.75 19.5L8.25 12l7.5-7.5"
+                />
+              </svg>
+            </button>
+          )}
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+              <span className="text-primary text-sm">
+                {step === "analyzing" ? "⏳" : "＋"}
+              </span>
+            </div>
+            <h1 className="text-xl font-bold text-primary">{getHeaderTitle()}</h1>
+          </div>
+        </div>
       </header>
 
-      {/* エラー表示 */}
-      {analyzeError && (
-        <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-600 text-sm">
-          {analyzeError}
-        </div>
-      )}
-
-      {/* 選択画面 */}
-      {step === "select" && (
-        <div className="space-y-4">
-          <p className="text-muted-foreground mb-6">
-            お酒のラベルを撮影するか、銘柄を入力してください
-          </p>
-
-          {/* 写真を撮る */}
-          <button
-            onClick={() => setStep("photo")}
-            className="w-full flex items-center gap-4 p-4 bg-primary/5 rounded-lg border-l-4 border-primary hover:bg-primary/10 transition-colors"
-          >
-            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={1.5}
-                stroke="currentColor"
-                className="w-6 h-6 text-primary"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z"
-                />
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z"
-                />
-              </svg>
+      {/* メインコンテンツ */}
+      <main className="px-4 pt-6 pb-24">
+        {/* エラー表示 */}
+        {analyzeError && (
+          <div className="mb-6 p-4 bg-vermilion/10 border border-vermilion/20 rounded-lg animate-in scale-in">
+            <div className="flex items-start gap-3">
+              <span className="text-vermilion text-lg">⚠</span>
+              <div>
+                <p className="text-vermilion font-medium text-sm">エラーが発生しました</p>
+                <p className="text-vermilion/80 text-sm mt-1">{analyzeError}</p>
+              </div>
             </div>
-            <div className="text-left">
-              <h3 className="font-semibold">写真を撮る</h3>
-              <p className="text-sm text-muted-foreground">
-                ラベルからAIが情報を読み取ります
+          </div>
+        )}
+
+        {/* 選択画面 */}
+        {step === "select" && (
+          <div className="space-y-6 animate-in fade-in">
+            {/* イントロテキスト */}
+            <div className="text-center py-4">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/5 mb-4">
+                <span className="text-3xl">🍶</span>
+              </div>
+              <p className="text-muted-foreground">
+                お酒のラベルを撮影するか、
+                <br />
+                銘柄名を入力してください
               </p>
             </div>
-          </button>
 
-          {/* 手動入力 */}
-          <button
-            onClick={() => setStep("manual")}
-            className="w-full flex items-center gap-4 p-4 bg-muted rounded-lg border border-border hover:border-primary/40 transition-colors"
-          >
-            <div className="w-12 h-12 rounded-full bg-border/50 flex items-center justify-center">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={1.5}
-                stroke="currentColor"
-                className="w-6 h-6 text-muted-foreground"
+            {/* オプションカード */}
+            <div className="space-y-4">
+              {/* 写真を撮る - プライマリオプション */}
+              <button
+                onClick={() => setStep("photo")}
+                className="w-full card-tatami p-5 text-left group transition-all hover:shadow-lg active:scale-[0.98]"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10"
-                />
-              </svg>
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center group-hover:from-primary/30 group-hover:to-primary/10 transition-all">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      strokeWidth={1.5}
+                      stroke="currentColor"
+                      className="w-7 h-7 text-primary"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z"
+                      />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z"
+                      />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-bold text-foreground text-lg">
+                      写真を撮る
+                    </h3>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                      ラベルからAIが情報を読み取ります
+                    </p>
+                  </div>
+                  <svg
+                    className="w-5 h-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 5l7 7-7 7"
+                    />
+                  </svg>
+                </div>
+                {/* おすすめバッジ */}
+                <div className="mt-3 flex items-center gap-2">
+                  <span className="px-2 py-0.5 bg-gold/10 text-gold text-xs font-medium rounded">
+                    おすすめ
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    最も簡単な方法です
+                  </span>
+                </div>
+              </button>
+
+              {/* 手動入力 - セカンダリオプション */}
+              <button
+                onClick={() => setStep("manual")}
+                className="w-full p-5 bg-muted rounded-lg border border-border text-left group transition-all hover:border-primary/30 hover:bg-muted/80 active:scale-[0.98]"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 rounded-xl bg-border/50 flex items-center justify-center group-hover:bg-border transition-all">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      strokeWidth={1.5}
+                      stroke="currentColor"
+                      className="w-7 h-7 text-muted-foreground group-hover:text-foreground transition-colors"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10"
+                      />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-bold text-foreground text-lg">
+                      銘柄を入力
+                    </h3>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                      種類と名前を直接入力します
+                    </p>
+                  </div>
+                  <svg
+                    className="w-5 h-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 5l7 7-7 7"
+                    />
+                  </svg>
+                </div>
+              </button>
             </div>
-            <div className="text-left">
-              <h3 className="font-semibold">銘柄を入力</h3>
-              <p className="text-sm text-muted-foreground">
-                種類と名前を直接入力します
-              </p>
+
+            {/* ヒントセクション */}
+            <div className="mt-8 p-4 bg-background rounded-lg border border-border-light">
+              <h4 className="text-sm font-medium text-foreground flex items-center gap-2 mb-2">
+                <span className="text-gold">💡</span>
+                撮影のコツ
+              </h4>
+              <ul className="text-xs text-muted-foreground space-y-1.5">
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-0.5">•</span>
+                  ラベル全体が映るように撮影してください
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-0.5">•</span>
+                  明るい場所で撮影すると認識精度が上がります
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-0.5">•</span>
+                  ぼやけないようにピントを合わせてください
+                </li>
+              </ul>
             </div>
-          </button>
-        </div>
-      )}
+          </div>
+        )}
 
-      {/* 写真アップロード */}
-      {step === "photo" && (
-        <Suspense fallback={<ComponentLoader />}>
-          <PhotoUploader onUploaded={handlePhotoUploaded} />
-        </Suspense>
-      )}
+        {/* 写真アップロード */}
+        {step === "photo" && (
+          <Suspense fallback={<ComponentLoader />}>
+            <PhotoUploader onUploaded={handlePhotoUploaded} />
+          </Suspense>
+        )}
 
-      {/* 手動入力フォーム */}
-      {step === "manual" && (
-        <Suspense fallback={<ComponentLoader />}>
-          <AlcoholForm onSubmit={handleManualSubmit} />
-        </Suspense>
-      )}
+        {/* 手動入力フォーム */}
+        {step === "manual" && (
+          <Suspense fallback={<ComponentLoader />}>
+            <AlcoholForm onSubmit={handleManualSubmit} />
+          </Suspense>
+        )}
 
-      {/* 分析中 */}
-      {step === "analyzing" && (
-        <div className="flex flex-col items-center justify-center py-20">
-          <div className="w-16 h-16 border-4 border-primary/20 border-t-primary rounded-full animate-spin mb-4" />
-          <p className="text-muted-foreground">AIがお酒の情報を分析中...</p>
-        </div>
-      )}
+        {/* 分析中 */}
+        {step === "analyzing" && (
+          <div className="flex flex-col items-center justify-center py-20 animate-in fade-in">
+            {/* 和風ローディング */}
+            <div className="relative w-24 h-24 mb-6">
+              {/* 外側の円 */}
+              <div className="absolute inset-0 border-2 border-primary/20 rounded-full" />
+              {/* 回転する円弧 */}
+              <div className="absolute inset-0 border-2 border-transparent border-t-primary rounded-full animate-spin" />
+              {/* 中央のアイコン */}
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-3xl animate-float">🍶</span>
+              </div>
+            </div>
+            <p className="text-foreground font-medium mb-2">AIが分析中...</p>
+            <p className="text-sm text-muted-foreground">
+              お酒の情報を読み取っています
+            </p>
+          </div>
+        )}
 
-      {/* 確認画面 */}
-      {step === "confirm" && alcoholInfo && (
-        <Suspense fallback={<ComponentLoader />}>
-          <AlcoholConfirm
-            alcoholInfo={alcoholInfo}
-            onConfirm={handleConfirm}
-            onReject={handleReject}
-          />
-        </Suspense>
-      )}
+        {/* 確認画面 */}
+        {step === "confirm" && alcoholInfo && (
+          <Suspense fallback={<ComponentLoader />}>
+            <AlcoholConfirm
+              alcoholInfo={alcoholInfo}
+              onConfirm={handleConfirm}
+              onReject={handleReject}
+            />
+          </Suspense>
+        )}
 
-      {/* 候補選択画面 */}
-      {step === "candidates" && candidates.length > 0 && (
-        <Suspense fallback={<ComponentLoader />}>
-          <CandidateSelector
-            candidates={candidates}
-            onSelect={handleCandidateSelect}
-          />
-        </Suspense>
-      )}
+        {/* 候補選択画面 */}
+        {step === "candidates" && candidates.length > 0 && (
+          <Suspense fallback={<ComponentLoader />}>
+            <CandidateSelector
+              candidates={candidates}
+              onSelect={handleCandidateSelect}
+            />
+          </Suspense>
+        )}
 
-      {/* レビュー画面 */}
-      {step === "review" && alcoholInfo && (
-        <Suspense fallback={<ComponentLoader />}>
-          <ReviewForm
-            alcoholInfo={alcoholInfo}
-            photoUrl={photoUrl}
-            onSave={handleSave}
-            isLoading={isSaving}
-          />
-        </Suspense>
-      )}
+        {/* レビュー画面 */}
+        {step === "review" && alcoholInfo && (
+          <Suspense fallback={<ComponentLoader />}>
+            <ReviewForm
+              alcoholInfo={alcoholInfo}
+              photoUrl={photoUrl}
+              onSave={handleSave}
+              isLoading={isSaving}
+            />
+          </Suspense>
+        )}
+      </main>
     </div>
   );
 }

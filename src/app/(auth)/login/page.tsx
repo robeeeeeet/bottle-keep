@@ -25,27 +25,54 @@ export default function LoginPage() {
       {/* 青海波パターン背景 */}
       <div className="pattern-seigaiha" />
 
-      <div className="relative z-10 sm:mx-auto sm:w-full sm:max-w-sm">
-        <h1 className="text-center text-3xl font-bold text-primary">
+      {/* 装飾：左下の円弧 */}
+      <div className="absolute -bottom-32 -left-32 w-64 h-64 border border-primary/10 rounded-full" />
+      <div className="absolute -bottom-24 -left-24 w-48 h-48 border border-primary/5 rounded-full" />
+
+      {/* 装飾：右上の円弧 */}
+      <div className="absolute -top-32 -right-32 w-64 h-64 border border-gold/10 rounded-full" />
+      <div className="absolute -top-24 -right-24 w-48 h-48 border border-gold/5 rounded-full" />
+
+      {/* ロゴ・タイトルエリア */}
+      <div className="relative z-10 sm:mx-auto sm:w-full sm:max-w-sm animate-in fade-in">
+        {/* ロゴ */}
+        <div className="flex justify-center mb-6">
+          <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center shadow-lg">
+            <span className="text-4xl">🍶</span>
+          </div>
+        </div>
+
+        <h1 className="text-center text-3xl font-bold text-primary tracking-wider">
           Bottle Keep
         </h1>
-        <p className="mt-2 text-center text-sm text-foreground/60">
+        <p className="mt-2 text-center text-sm text-muted-foreground">
           お酒のコレクションを管理
         </p>
+
+        {/* 金色の装飾ライン */}
+        <div className="mt-4 flex items-center justify-center gap-2">
+          <div className="h-px w-12 bg-gradient-to-r from-transparent to-gold/50" />
+          <span className="text-gold text-xs">◆</span>
+          <div className="h-px w-12 bg-gradient-to-l from-transparent to-gold/50" />
+        </div>
       </div>
 
-      <div className="relative z-10 mt-10 sm:mx-auto sm:w-full sm:max-w-sm">
-        <form action={handleSubmit} className="space-y-6">
+      {/* フォームエリア */}
+      <div className="relative z-10 mt-10 sm:mx-auto sm:w-full sm:max-w-sm animate-in fade-in stagger-2">
+        <form action={handleSubmit} className="space-y-5">
           {error && (
-            <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
-              <p className="text-sm text-red-600">{error}</p>
+            <div className="p-4 rounded-lg bg-vermilion/10 border border-vermilion/20 animate-in scale-in">
+              <div className="flex items-center gap-2">
+                <span className="text-vermilion">⚠</span>
+                <p className="text-sm text-vermilion">{error}</p>
+              </div>
             </div>
           )}
 
           <div>
             <label
               htmlFor="email"
-              className="block text-sm font-medium text-foreground"
+              className="block text-sm font-medium text-foreground mb-2"
             >
               メールアドレス
             </label>
@@ -55,7 +82,7 @@ export default function LoginPage() {
               type="email"
               autoComplete="email"
               required
-              className="mt-2 block w-full rounded-lg border border-border bg-muted px-4 py-3 text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              className="input-japanese w-full"
               placeholder="you@example.com"
             />
           </div>
@@ -63,7 +90,7 @@ export default function LoginPage() {
           <div>
             <label
               htmlFor="password"
-              className="block text-sm font-medium text-foreground"
+              className="block text-sm font-medium text-foreground mb-2"
             >
               パスワード
             </label>
@@ -73,7 +100,7 @@ export default function LoginPage() {
               type="password"
               autoComplete="current-password"
               required
-              className="mt-2 block w-full rounded-lg border border-border bg-muted px-4 py-3 text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              className="input-japanese w-full"
               placeholder="••••••••"
             />
           </div>
@@ -81,20 +108,48 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full rounded-lg bg-gradient-to-b from-primary to-primary/90 px-4 py-3 text-sm font-semibold text-primary-foreground hover:from-primary/95 hover:to-primary/85 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+            className="w-full rounded-lg btn-primary-gradient px-4 py-3.5 text-sm font-bold text-primary-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98]"
           >
-            {isLoading ? "ログイン中..." : "ログイン"}
+            {isLoading ? (
+              <span className="flex items-center justify-center gap-2">
+                <span className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                ログイン中...
+              </span>
+            ) : (
+              "ログイン"
+            )}
           </button>
         </form>
 
-        <p className="mt-10 text-center text-sm text-foreground/60">
-          アカウントをお持ちでない方は{" "}
-          <Link
-            href="/signup"
-            className="font-semibold text-accent hover:text-accent/80"
-          >
-            新規登録
-          </Link>
+        {/* サインアップリンク */}
+        <div className="mt-8 text-center">
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-border" />
+            </div>
+            <div className="relative flex justify-center text-xs">
+              <span className="bg-background px-4 text-muted-foreground">
+                または
+              </span>
+            </div>
+          </div>
+
+          <p className="mt-6 text-sm text-muted-foreground">
+            アカウントをお持ちでない方は{" "}
+            <Link
+              href="/signup"
+              className="font-bold text-accent hover:text-accent-light transition-colors underline underline-offset-2"
+            >
+              新規登録
+            </Link>
+          </p>
+        </div>
+      </div>
+
+      {/* フッター */}
+      <div className="relative z-10 mt-12 text-center">
+        <p className="text-xs text-muted-foreground/50">
+          © 2025 Bottle Keep
         </p>
       </div>
     </div>
