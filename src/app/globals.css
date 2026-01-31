@@ -47,31 +47,31 @@
   --shadow-color-strong: rgba(30, 77, 120, 0.15);
 }
 
-/* ダークモード */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0f1419;
-    --background-warm: #141a20;
-    --foreground: #e8e6e3;
-    --primary: #4c8db0;
-    --primary-light: #5da0c5;
-    --primary-dark: #3d7a9a;
-    --primary-foreground: #ffffff;
-    --accent: #00c4d0;
-    --accent-light: #00dae8;
-    --accent-foreground: #ffffff;
-    --gold: #d4b366;
-    --gold-light: #e0c580;
-    --gold-dark: #b89a50;
-    --vermilion: #e06050;
-    --vermilion-light: #f07060;
-    --muted: #1a2530;
-    --muted-foreground: #a0a0a0;
-    --border: #2a3540;
-    --border-light: #354050;
-    --shadow-color: rgba(0, 0, 0, 0.3);
-    --shadow-color-strong: rgba(0, 0, 0, 0.5);
-  }
+/* ダークモード（classベース - next-themes用） */
+@custom-variant dark (&:where(.dark, .dark *));
+
+html.dark, .dark {
+  --background: #0f1419;
+  --background-warm: #141a20;
+  --foreground: #e8e6e3;
+  --primary: #4c8db0;
+  --primary-light: #5da0c5;
+  --primary-dark: #3d7a9a;
+  --primary-foreground: #ffffff;
+  --accent: #00c4d0;
+  --accent-light: #00dae8;
+  --accent-foreground: #ffffff;
+  --gold: #d4b366;
+  --gold-light: #e0c580;
+  --gold-dark: #b89a50;
+  --vermilion: #e06050;
+  --vermilion-light: #f07060;
+  --muted: #1a2530;
+  --muted-foreground: #a0a0a0;
+  --border: #2a3540;
+  --border-light: #354050;
+  --shadow-color: rgba(0, 0, 0, 0.3);
+  --shadow-color-strong: rgba(0, 0, 0, 0.5);
 }
 
 @theme inline {

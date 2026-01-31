@@ -4,6 +4,7 @@ import { useState, lazy, Suspense } from "react";
 import { analyzeAlcohol, type AlcoholInfo } from "@/lib/gemini/analyze";
 import { saveCollection } from "./actions";
 import type { ReviewData } from "@/components/add/review-form";
+import { HeaderActions } from "@/components/layout/header-actions";
 
 // 動的インポート（初期表示に不要なコンポーネントを遅延読み込み）
 const PhotoUploader = lazy(() =>
@@ -242,36 +243,39 @@ export default function AddPage() {
     <div className="min-h-screen">
       {/* ヘッダー */}
       <header className="header-japanese sticky top-0 z-40 px-4 py-4">
-        <div className="flex items-center">
-          {step !== "select" && step !== "analyzing" && (
-            <button
-              onClick={handleBack}
-              className="mr-3 p-2 -ml-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-all"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={2}
-                stroke="currentColor"
-                className="w-5 h-5"
+        <div className="flex items-center justify-between">
+          <div className="flex items-center">
+            {step !== "select" && step !== "analyzing" && (
+              <button
+                onClick={handleBack}
+                className="mr-3 p-2 -ml-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-all"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M15.75 19.5L8.25 12l7.5-7.5"
-                />
-              </svg>
-            </button>
-          )}
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-              <span className="text-primary text-sm">
-                {step === "analyzing" ? "⏳" : "＋"}
-              </span>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={2}
+                  stroke="currentColor"
+                  className="w-5 h-5"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M15.75 19.5L8.25 12l7.5-7.5"
+                  />
+                </svg>
+              </button>
+            )}
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                <span className="text-primary text-sm">
+                  {step === "analyzing" ? "⏳" : "＋"}
+                </span>
+              </div>
+              <h1 className="text-xl font-bold text-primary">{getHeaderTitle()}</h1>
             </div>
-            <h1 className="text-xl font-bold text-primary">{getHeaderTitle()}</h1>
           </div>
+          <HeaderActions />
         </div>
       </header>
 

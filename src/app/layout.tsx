@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import "./globals.css";
 import { OfflineIndicator } from "@/components/pwa/offline-indicator";
 import { NavigationProgress } from "@/components/layout/navigation-progress";
+import { ThemeProvider } from "@/components/providers/theme-provider";
 
 const notoSerifJP = Noto_Serif_JP({
   variable: "--font-noto-serif-jp",
@@ -55,7 +56,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ja">
+    <html lang="ja" suppressHydrationWarning>
       <head>
         {/* Supabase への事前接続（画像読み込み高速化） */}
         <link rel="preconnect" href="https://ceygoqxqwpcitjswwvlq.supabase.co" />
@@ -63,12 +64,15 @@ export default function RootLayout({
       </head>
       <body
         className={`${notoSerifJP.variable} ${geistMono.variable} antialiased`}
+        suppressHydrationWarning
       >
-        <Suspense fallback={null}>
-          <NavigationProgress />
-        </Suspense>
-        <OfflineIndicator />
-        {children}
+        <ThemeProvider>
+          <Suspense fallback={null}>
+            <NavigationProgress />
+          </Suspense>
+          <OfflineIndicator />
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   );
