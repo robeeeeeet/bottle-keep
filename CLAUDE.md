@@ -6,6 +6,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Bottle Keep - お酒のコレクションを管理するモバイルファーストPWAアプリケーション。
 
+## 技術スタック
+
+| 項目 | 技術 |
+|------|------|
+| Frontend | Next.js 15 (App Router) |
+| Database/Auth/Storage | Supabase (PostgreSQL + RLS + Auth + Storage) |
+| LLM | **Gemini 2.5 Flash**（画像認識 + お酒情報取得） |
+| PWA | next-pwa（ホームに追加対応） |
+| Hosting | Vercel |
+
+### LLM連携（Gemini API）
+
+- お酒のラベル画像 → Gemini Vision で情報抽出
+- 銘柄名テキスト → Gemini で詳細情報取得
+- **Supabase Edge Function** 経由でAPI呼び出し（APIキーをサーバー側で管理）
+- 環境変数: `GEMINI_API_KEY`
+
 ## コマンド
 
 ```bash
