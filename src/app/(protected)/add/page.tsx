@@ -4,28 +4,47 @@ import { useState } from "react";
 import { PhotoUploader } from "@/components/add/photo-uploader";
 import { AlcoholForm } from "@/components/add/alcohol-form";
 import { ReviewForm, type ReviewData } from "@/components/add/review-form";
+import { CandidateSelector } from "@/components/add/candidate-selector";
+import { AlcoholConfirm } from "@/components/add/alcohol-confirm";
 import { analyzeAlcohol, type AlcoholInfo } from "@/lib/gemini/analyze";
 import { saveCollection } from "./actions";
 
-type Step = "select" | "photo" | "manual" | "analyzing" | "review";
+type Step = "select" | "photo" | "manual" | "analyzing" | "confirm" | "candidates" | "review";
+
+// 元の検索パラメータを保持する型
+type OriginalQuery =
+  | { type: "image"; imageUrl: string }
+  | { type: "text"; text: string; alcoholType: string };
 
 export default function AddPage() {
   const [step, setStep] = useState<Step>("select");
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [alcoholInfo, setAlcoholInfo] = useState<AlcoholInfo | null>(null);
+  const [candidates, setCandidates] = useState<AlcoholInfo[]>([]);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  // 元の検索クエリを保持（代替候補取得時に使用）
+  const [originalQuery, setOriginalQuery] = useState<OriginalQuery | null>(null);
 
   // 写真アップロード完了時 → Geminiで分析
   const handlePhotoUploaded = async (url: string) => {
     setPhotoUrl(url);
     setStep("analyzing");
     setAnalyzeError(null);
+    setOriginalQuery({ type: "image", imageUrl: url });
 
     try {
-      const info = await analyzeAlcohol({ imageUrl: url });
-      setAlcoholInfo(info);
-      setStep("review");
+      const response = await analyzeAlcohol({ imageUrl: url });
+
+      if (response.unique) {
+        // 一意に特定できた場合 → 確認画面へ
+        setAlcoholInfo(response.result);
+        setStep("confirm");
+      } else {
+        // 複数候補がある場合 → 候補選択画面へ
+        setCandidates(response.candidates);
+        setStep("candidates");
+      }
     } catch (err) {
       console.error("Analysis error:", err);
       setAnalyzeError(
@@ -39,11 +58,20 @@ export default function AddPage() {
   const handleManualSubmit = async (name: string, type: string) => {
     setStep("analyzing");
     setAnalyzeError(null);
+    setOriginalQuery({ type: "text", text: name, alcoholType: type });
 
     try {
-      const info = await analyzeAlcohol({ text: name, type });
-      setAlcoholInfo(info);
-      setStep("review");
+      const response = await analyzeAlcohol({ text: name, type });
+
+      if (response.unique) {
+        // 一意に特定できた場合 → 確認画面へ
+        setAlcoholInfo(response.result);
+        setStep("confirm");
+      } else {
+        // 複数候補がある場合 → 候補選択画面へ
+        setCandidates(response.candidates);
+        setStep("candidates");
+      }
     } catch (err) {
       console.error("Analysis error:", err);
       setAnalyzeError(
@@ -51,6 +79,57 @@ export default function AddPage() {
       );
       setStep("manual");
     }
+  };
+
+  // 確認画面で「合っている」を選択
+  const handleConfirm = () => {
+    setStep("review");
+  };
+
+  // 確認画面で「違う」を選択 → 代替候補を取得
+  const handleReject = async () => {
+    if (!alcoholInfo || !originalQuery) return;
+
+    setStep("analyzing");
+    setAnalyzeError(null);
+
+    try {
+      let response;
+      if (originalQuery.type === "image") {
+        response = await analyzeAlcohol({
+          imageUrl: originalQuery.imageUrl,
+          rejectedName: alcoholInfo.name,
+        });
+      } else {
+        response = await analyzeAlcohol({
+          text: originalQuery.text,
+          type: originalQuery.alcoholType,
+          rejectedName: alcoholInfo.name,
+        });
+      }
+
+      if (response.unique) {
+        // まだ一意の結果が返ってきた場合は、それを候補として表示
+        setCandidates([response.result]);
+      } else {
+        setCandidates(response.candidates);
+      }
+      setAlcoholInfo(null);
+      setStep("candidates");
+    } catch (err) {
+      console.error("Analysis error:", err);
+      setAnalyzeError(
+        err instanceof Error ? err.message : "代替候補の取得に失敗しました"
+      );
+      setStep("confirm");
+    }
+  };
+
+  // 候補選択時
+  const handleCandidateSelect = (selected: AlcoholInfo) => {
+    setAlcoholInfo(selected);
+    setCandidates([]);
+    setStep("review");
   };
 
   // 保存
@@ -76,9 +155,23 @@ export default function AddPage() {
     if (step === "photo" || step === "manual") {
       setStep("select");
       setAnalyzeError(null);
-    } else if (step === "review") {
-      setStep(photoUrl ? "photo" : "manual");
+      setOriginalQuery(null);
+    } else if (step === "confirm") {
+      // 確認画面から戻る → 入力画面に戻る
+      setStep(originalQuery?.type === "image" ? "photo" : "manual");
       setAlcoholInfo(null);
+    } else if (step === "candidates") {
+      // 候補選択画面から戻る → 入力画面に戻る
+      setStep(originalQuery?.type === "image" ? "photo" : "manual");
+      setCandidates([]);
+      setAlcoholInfo(null);
+    } else if (step === "review") {
+      // レビュー画面から戻る → 確認画面に戻る（候補選択経由の場合は候補選択に）
+      if (candidates.length > 0) {
+        setStep("candidates");
+      } else {
+        setStep("confirm");
+      }
     }
   };
 
@@ -112,6 +205,8 @@ export default function AddPage() {
           {step === "photo" && "写真を撮影"}
           {step === "manual" && "銘柄を入力"}
           {step === "analyzing" && "分析中..."}
+          {step === "confirm" && "銘柄を確認"}
+          {step === "candidates" && "銘柄を選択"}
           {step === "review" && "情報を確認"}
         </h1>
       </header>
@@ -207,6 +302,23 @@ export default function AddPage() {
           <div className="w-16 h-16 border-4 border-primary/20 border-t-primary rounded-full animate-spin mb-4" />
           <p className="text-foreground/60">AIがお酒の情報を分析中...</p>
         </div>
+      )}
+
+      {/* 確認画面 */}
+      {step === "confirm" && alcoholInfo && (
+        <AlcoholConfirm
+          alcoholInfo={alcoholInfo}
+          onConfirm={handleConfirm}
+          onReject={handleReject}
+        />
+      )}
+
+      {/* 候補選択画面 */}
+      {step === "candidates" && candidates.length > 0 && (
+        <CandidateSelector
+          candidates={candidates}
+          onSelect={handleCandidateSelect}
+        />
       )}
 
       {/* レビュー画面 */}

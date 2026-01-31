@@ -10,6 +10,7 @@ type Props = {
 
 export function PhotoUploader({ onUploaded }: Props) {
   const [preview, setPreview] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -31,6 +32,7 @@ export function PhotoUploader({ onUploaded }: Props) {
     }
 
     setError(null);
+    setSelectedFile(file);
 
     // プレビュー表示
     const reader = new FileReader();
@@ -41,8 +43,7 @@ export function PhotoUploader({ onUploaded }: Props) {
   };
 
   const handleUpload = async () => {
-    const file = fileInputRef.current?.files?.[0];
-    if (!file || !preview) return;
+    if (!selectedFile || !preview) return;
 
     setUploading(true);
     setError(null);
@@ -57,13 +58,13 @@ export function PhotoUploader({ onUploaded }: Props) {
       if (!user) throw new Error("ログインが必要です");
 
       // ファイル名を生成（ユーザーID + タイムスタンプ + 元の拡張子）
-      const ext = file.name.split(".").pop();
+      const ext = selectedFile.name.split(".").pop();
       const fileName = `${user.id}/${Date.now()}.${ext}`;
 
       // Supabase Storageにアップロード
       const { error: uploadError } = await supabase.storage
         .from("photos")
-        .upload(fileName, file, {
+        .upload(fileName, selectedFile, {
           cacheControl: "3600",
           upsert: false,
         });
@@ -88,6 +89,7 @@ export function PhotoUploader({ onUploaded }: Props) {
 
   const handleReset = () => {
     setPreview(null);
+    setSelectedFile(null);
     setError(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";

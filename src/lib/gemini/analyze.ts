@@ -13,17 +13,24 @@ export type AlcoholInfo = {
   characteristics?: string[] | null;
 };
 
+// Edge Functionからのレスポンス型
+export type AnalyzeResponse =
+  | { unique: true; result: AlcoholInfo }
+  | { unique: false; result: null; candidates: AlcoholInfo[] };
+
 type AnalyzeParams =
-  | { imageUrl: string }
-  | { imageBase64: string }
-  | { text: string; type?: string };
+  | { imageUrl: string; rejectedName?: string }
+  | { imageBase64: string; rejectedName?: string }
+  | { text: string; type?: string; rejectedName?: string };
 
 /**
  * Gemini APIを使ってお酒の情報を分析する
+ * @param params.rejectedName ユーザーが「違う」と言った銘柄名（代替候補を取得する際に使用）
+ * @returns 一意に特定できた場合はAlcoholInfo、複数候補がある場合はcandidates配列を含むオブジェクト
  */
 export async function analyzeAlcohol(
   params: AnalyzeParams
-): Promise<AlcoholInfo> {
+): Promise<AnalyzeResponse> {
   const supabase = createClient();
 
   // 認証トークンを取得（getUser()を使用 - より信頼性が高い）
@@ -69,7 +76,17 @@ export async function analyzeAlcohol(
     }
   }
 
-  return response.json();
+  const data = await response.json();
+
+  // 後方互換性: 古い形式のレスポンス（uniqueフィールドがない）を処理
+  if (data.unique === undefined) {
+    return {
+      unique: true,
+      result: data as AlcoholInfo,
+    };
+  }
+
+  return data as AnalyzeResponse;
 }
 
 /**

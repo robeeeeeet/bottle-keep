@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import Image from "next/image";
 import type { AlcoholInfo } from "@/lib/gemini/analyze";
 
@@ -26,6 +26,31 @@ export function ReviewForm({ alcoholInfo, photoUrl, onSave, isLoading }: Props) 
   const [rating, setRating] = useState(0);
   const [memo, setMemo] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const starsContainerRef = useRef<HTMLDivElement>(null);
+
+  // タッチ位置から星の番号を計算
+  const getRatingFromTouch = (clientX: number): number => {
+    const container = starsContainerRef.current;
+    if (!container) return 0;
+
+    const rect = container.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const starWidth = rect.width / 5;
+    const starNumber = Math.ceil(x / starWidth);
+    return Math.max(1, Math.min(5, starNumber));
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    const newRating = getRatingFromTouch(touch.clientX);
+    setRating(newRating);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    const newRating = getRatingFromTouch(touch.clientX);
+    setRating(newRating);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -117,23 +142,29 @@ export function ReviewForm({ alcoholInfo, photoUrl, onSave, isLoading }: Props) 
         />
       </div>
 
-      {/* 星評価 */}
+      {/* 星評価（タップ＆スライド対応） */}
       <div>
         <label className="block text-sm font-medium mb-2">
           評価 <span className="text-red-500">*</span>
         </label>
-        <div className="flex gap-2">
+        <div
+          ref={starsContainerRef}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          className="flex touch-none select-none"
+        >
           {[1, 2, 3, 4, 5].map((star) => (
             <button
               key={star}
               type="button"
               onClick={() => setRating(star)}
-              className="text-3xl transition-transform hover:scale-110 active:scale-95"
+              className="text-3xl px-2 py-1 transition-transform hover:scale-110 active:scale-95"
             >
               {star <= rating ? "★" : "☆"}
             </button>
           ))}
         </div>
+        <p className="text-xs text-foreground/40 mt-1">タップまたはスライドで選択</p>
       </div>
 
       {/* メモ */}
