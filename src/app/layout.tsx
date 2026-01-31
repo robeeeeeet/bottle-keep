@@ -21,13 +21,22 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover",
-  themeColor: "#1e4d78", // 藍色
+  themeColor: "#2a1810", // 木目の暗い色
 };
 
 export const metadata: Metadata = {
   title: "Bottle Keep",
   description: "お酒のコレクションを管理するアプリ",
   manifest: "/manifest.json",
+  icons: {
+    icon: [
+      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+    ],
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
@@ -46,7 +55,6 @@ export default function RootLayout({
   return (
     <html lang="ja">
       <head>
-        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
         {/* Supabase への事前接続（画像読み込み高速化） */}
         <link rel="preconnect" href="https://ceygoqxqwpcitjswwvlq.supabase.co" />
         <link rel="dns-prefetch" href="https://ceygoqxqwpcitjswwvlq.supabase.co" />
