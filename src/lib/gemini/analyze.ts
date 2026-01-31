@@ -40,7 +40,19 @@ export async function analyzeAlcohol(
 
   if (error) {
     console.error("Function error:", error);
-    throw new Error(error.message || "分析に失敗しました");
+    // エラーレスポンスの詳細を取得
+    let errorMessage = "分析に失敗しました";
+    if (data && typeof data === "object" && "error" in data) {
+      errorMessage = (data as { error: string }).error;
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    throw new Error(errorMessage);
+  }
+
+  // data が null の場合のエラーハンドリング
+  if (!data) {
+    throw new Error("レスポンスが空です");
   }
 
   // 後方互換性: 古い形式のレスポンス（uniqueフィールドがない）を処理
