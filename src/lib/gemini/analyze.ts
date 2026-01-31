@@ -33,50 +33,15 @@ export async function analyzeAlcohol(
 ): Promise<AnalyzeResponse> {
   const supabase = createClient();
 
-  // 認証トークンを取得（getUser()を使用 - より信頼性が高い）
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
+  // supabase.functions.invoke() を使用することで認証を自動処理
+  const { data, error } = await supabase.functions.invoke("analyze-alcohol", {
+    body: params,
+  });
 
-  if (userError || !user) {
-    console.error("Auth error:", userError);
-    throw new Error("認証が必要です");
+  if (error) {
+    console.error("Function error:", error);
+    throw new Error(error.message || "分析に失敗しました");
   }
-
-  // セッションからアクセストークンを取得
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
-  if (!session) {
-    throw new Error("セッションが見つかりません");
-  }
-
-  const response = await fetch(
-    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/analyze-alcohol`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${session.access_token}`,
-      },
-      body: JSON.stringify(params),
-    }
-  );
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error("API error:", response.status, errorText);
-    try {
-      const error = JSON.parse(errorText);
-      throw new Error(error.error || "分析に失敗しました");
-    } catch {
-      throw new Error(`分析に失敗しました (${response.status})`);
-    }
-  }
-
-  const data = await response.json();
 
   // 後方互換性: 古い形式のレスポンス（uniqueフィールドがない）を処理
   if (data.unique === undefined) {
