@@ -29,7 +29,7 @@ export async function signup(formData: FormData) {
   const password = formData.get("password") as string;
   const displayName = formData.get("displayName") as string;
 
-  const { error } = await supabase.auth.signUp({
+  const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
@@ -43,6 +43,12 @@ export async function signup(formData: FormData) {
     return { error: error.message };
   }
 
+  // メール確認が必要な場合（sessionがnullでuserが存在）
+  if (data.user && !data.session) {
+    return { success: true, emailConfirmationRequired: true, email };
+  }
+
+  // メール確認不要の場合（開発環境など）
   revalidatePath("/", "layout");
   redirect("/shelf");
 }

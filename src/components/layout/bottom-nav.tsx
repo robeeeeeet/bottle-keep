@@ -55,34 +55,12 @@ const navItems = [
       </svg>
     ),
   },
-  {
-    href: "/shared",
-    label: "共有",
-    // 複数の盃
-    icon: (
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={1.5}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="w-6 h-6"
-      >
-        {/* 左の盃 */}
-        <path d="M4 8c0 0 1 4 4 4s4-4 4-4" />
-        <path d="M8 12v3" />
-        <path d="M5 15h6" />
-        {/* 右の盃 */}
-        <path d="M12 8c0 0 1 4 4 4s4-4 4-4" />
-        <path d="M16 12v3" />
-        <path d="M13 15h6" />
-        {/* 接続線（共有を表現） */}
-        <path d="M8 6l4 0m4 0" strokeDasharray="2 2" opacity="0.5" />
-      </svg>
-    ),
-  },
+  // 共有機能は一時的に非表示
+  // {
+  //   href: "/shared",
+  //   label: "共有",
+  //   icon: (...),
+  // },
 ];
 
 export function BottomNav() {

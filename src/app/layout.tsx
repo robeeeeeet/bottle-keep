@@ -1,7 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import { Noto_Serif_JP, Geist_Mono } from "next/font/google";
+import { Suspense } from "react";
 import "./globals.css";
 import { OfflineIndicator } from "@/components/pwa/offline-indicator";
+import { NavigationProgress } from "@/components/layout/navigation-progress";
 
 const notoSerifJP = Noto_Serif_JP({
   variable: "--font-noto-serif-jp",
@@ -62,6 +64,9 @@ export default function RootLayout({
       <body
         className={`${notoSerifJP.variable} ${geistMono.variable} antialiased`}
       >
+        <Suspense fallback={null}>
+          <NavigationProgress />
+        </Suspense>
         <OfflineIndicator />
         {children}
       </body>

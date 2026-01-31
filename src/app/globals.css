@@ -314,7 +314,8 @@ select {
     var(--primary) 30%,
     var(--primary-dark) 100%
   );
-  position: relative;
+  /* Tailwindのfixedを確実に適用するため明示的に指定 */
+  position: fixed !important;
 }
 
 .nav-japanese::before {
@@ -549,7 +550,7 @@ select {
     var(--background-warm) 100%
   );
   border-bottom: 1px solid var(--border-light);
-  position: relative;
+  /* position: relativeを削除 - stickyを上書きしないため */
 }
 
 .header-japanese::after {
