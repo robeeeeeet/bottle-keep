@@ -1,13 +1,45 @@
 "use client";
 
-import { useState } from "react";
-import { PhotoUploader } from "@/components/add/photo-uploader";
-import { AlcoholForm } from "@/components/add/alcohol-form";
-import { ReviewForm, type ReviewData } from "@/components/add/review-form";
-import { CandidateSelector } from "@/components/add/candidate-selector";
-import { AlcoholConfirm } from "@/components/add/alcohol-confirm";
+import { useState, lazy, Suspense } from "react";
 import { analyzeAlcohol, type AlcoholInfo } from "@/lib/gemini/analyze";
 import { saveCollection } from "./actions";
+import type { ReviewData } from "@/components/add/review-form";
+
+// 動的インポート（初期表示に不要なコンポーネントを遅延読み込み）
+const PhotoUploader = lazy(() =>
+  import("@/components/add/photo-uploader").then((mod) => ({
+    default: mod.PhotoUploader,
+  }))
+);
+const AlcoholForm = lazy(() =>
+  import("@/components/add/alcohol-form").then((mod) => ({
+    default: mod.AlcoholForm,
+  }))
+);
+const ReviewForm = lazy(() =>
+  import("@/components/add/review-form").then((mod) => ({
+    default: mod.ReviewForm,
+  }))
+);
+const CandidateSelector = lazy(() =>
+  import("@/components/add/candidate-selector").then((mod) => ({
+    default: mod.CandidateSelector,
+  }))
+);
+const AlcoholConfirm = lazy(() =>
+  import("@/components/add/alcohol-confirm").then((mod) => ({
+    default: mod.AlcoholConfirm,
+  }))
+);
+
+// コンポーネント読み込み中のフォールバック
+function ComponentLoader() {
+  return (
+    <div className="flex justify-center py-8">
+      <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+    </div>
+  );
+}
 
 type Step = "select" | "photo" | "manual" | "analyzing" | "confirm" | "candidates" | "review";
 
@@ -182,7 +214,7 @@ export default function AddPage() {
         {step !== "select" && step !== "analyzing" && (
           <button
             onClick={handleBack}
-            className="mr-3 p-1 -ml-1 text-foreground/60 hover:text-foreground"
+            className="mr-3 p-1 -ml-1 text-muted-foreground hover:text-foreground transition-colors"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -200,7 +232,7 @@ export default function AddPage() {
             </svg>
           </button>
         )}
-        <h1 className="text-2xl font-bold">
+        <h1 className="text-2xl font-bold text-primary">
           {step === "select" && "お酒を追加"}
           {step === "photo" && "写真を撮影"}
           {step === "manual" && "銘柄を入力"}
@@ -213,7 +245,7 @@ export default function AddPage() {
 
       {/* エラー表示 */}
       {analyzeError && (
-        <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-600 text-sm">
+        <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-600 text-sm">
           {analyzeError}
         </div>
       )}
@@ -221,16 +253,16 @@ export default function AddPage() {
       {/* 選択画面 */}
       {step === "select" && (
         <div className="space-y-4">
-          <p className="text-foreground/60 mb-6">
+          <p className="text-muted-foreground mb-6">
             お酒のラベルを撮影するか、銘柄を入力してください
           </p>
 
           {/* 写真を撮る */}
           <button
             onClick={() => setStep("photo")}
-            className="w-full flex items-center gap-4 p-4 bg-primary/10 rounded-xl border-2 border-primary/20 hover:border-primary/40 transition-colors"
+            className="w-full flex items-center gap-4 p-4 bg-primary/5 rounded-lg border-l-4 border-primary hover:bg-primary/10 transition-colors"
           >
-            <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
@@ -253,7 +285,7 @@ export default function AddPage() {
             </div>
             <div className="text-left">
               <h3 className="font-semibold">写真を撮る</h3>
-              <p className="text-sm text-foreground/60">
+              <p className="text-sm text-muted-foreground">
                 ラベルからAIが情報を読み取ります
               </p>
             </div>
@@ -262,16 +294,16 @@ export default function AddPage() {
           {/* 手動入力 */}
           <button
             onClick={() => setStep("manual")}
-            className="w-full flex items-center gap-4 p-4 bg-foreground/5 rounded-xl border-2 border-foreground/10 hover:border-foreground/20 transition-colors"
+            className="w-full flex items-center gap-4 p-4 bg-muted rounded-lg border border-border hover:border-primary/40 transition-colors"
           >
-            <div className="w-12 h-12 rounded-full bg-foreground/10 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-full bg-border/50 flex items-center justify-center">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"
                 strokeWidth={1.5}
                 stroke="currentColor"
-                className="w-6 h-6"
+                className="w-6 h-6 text-muted-foreground"
               >
                 <path
                   strokeLinecap="round"
@@ -282,7 +314,7 @@ export default function AddPage() {
             </div>
             <div className="text-left">
               <h3 className="font-semibold">銘柄を入力</h3>
-              <p className="text-sm text-foreground/60">
+              <p className="text-sm text-muted-foreground">
                 種類と名前を直接入力します
               </p>
             </div>
@@ -291,44 +323,58 @@ export default function AddPage() {
       )}
 
       {/* 写真アップロード */}
-      {step === "photo" && <PhotoUploader onUploaded={handlePhotoUploaded} />}
+      {step === "photo" && (
+        <Suspense fallback={<ComponentLoader />}>
+          <PhotoUploader onUploaded={handlePhotoUploaded} />
+        </Suspense>
+      )}
 
       {/* 手動入力フォーム */}
-      {step === "manual" && <AlcoholForm onSubmit={handleManualSubmit} />}
+      {step === "manual" && (
+        <Suspense fallback={<ComponentLoader />}>
+          <AlcoholForm onSubmit={handleManualSubmit} />
+        </Suspense>
+      )}
 
       {/* 分析中 */}
       {step === "analyzing" && (
         <div className="flex flex-col items-center justify-center py-20">
           <div className="w-16 h-16 border-4 border-primary/20 border-t-primary rounded-full animate-spin mb-4" />
-          <p className="text-foreground/60">AIがお酒の情報を分析中...</p>
+          <p className="text-muted-foreground">AIがお酒の情報を分析中...</p>
         </div>
       )}
 
       {/* 確認画面 */}
       {step === "confirm" && alcoholInfo && (
-        <AlcoholConfirm
-          alcoholInfo={alcoholInfo}
-          onConfirm={handleConfirm}
-          onReject={handleReject}
-        />
+        <Suspense fallback={<ComponentLoader />}>
+          <AlcoholConfirm
+            alcoholInfo={alcoholInfo}
+            onConfirm={handleConfirm}
+            onReject={handleReject}
+          />
+        </Suspense>
       )}
 
       {/* 候補選択画面 */}
       {step === "candidates" && candidates.length > 0 && (
-        <CandidateSelector
-          candidates={candidates}
-          onSelect={handleCandidateSelect}
-        />
+        <Suspense fallback={<ComponentLoader />}>
+          <CandidateSelector
+            candidates={candidates}
+            onSelect={handleCandidateSelect}
+          />
+        </Suspense>
       )}
 
       {/* レビュー画面 */}
       {step === "review" && alcoholInfo && (
-        <ReviewForm
-          alcoholInfo={alcoholInfo}
-          photoUrl={photoUrl}
-          onSave={handleSave}
-          isLoading={isSaving}
-        />
+        <Suspense fallback={<ComponentLoader />}>
+          <ReviewForm
+            alcoholInfo={alcoholInfo}
+            photoUrl={photoUrl}
+            onSave={handleSave}
+            isLoading={isSaving}
+          />
+        </Suspense>
       )}
     </div>
   );

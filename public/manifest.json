@@ -4,8 +4,8 @@
   "description": "お酒のコレクションを管理するアプリ",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0a0a0a",
-  "theme_color": "#7c3aed",
+  "background_color": "#faf8f5",
+  "theme_color": "#1e4d78",
   "orientation": "portrait",
   "icons": [
     {

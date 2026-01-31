@@ -1,10 +1,44 @@
 @import "tailwindcss";
 
+/* 日本の伝統色をベースにしたカラーパレット */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-  --primary: #7c3aed;
+  /* 和紙調の温かみのある背景 */
+  --background: #faf8f5;
+  --foreground: #1a1a1a;
+
+  /* 藍色 - メインカラー */
+  --primary: #1e4d78;
   --primary-foreground: #ffffff;
+
+  /* 浅葱色 - アクセントカラー */
+  --accent: #00a3af;
+  --accent-foreground: #ffffff;
+
+  /* 金茶 - ハイライト */
+  --gold: #c7a252;
+
+  /* 和紙調の背景色 */
+  --muted: #f5f0e8;
+  --muted-foreground: #5c5c5c;
+
+  /* ボーダー（温かみのある色） */
+  --border: #d4ccc0;
+}
+
+/* ダークモード */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0f1419;
+    --foreground: #e8e6e3;
+    --primary: #4c8db0;
+    --primary-foreground: #ffffff;
+    --accent: #00c4d0;
+    --accent-foreground: #ffffff;
+    --gold: #d4b366;
+    --muted: #1a2530;
+    --muted-foreground: #a0a0a0;
+    --border: #2a3540;
+  }
 }
 
 @theme inline {
@@ -12,15 +46,41 @@
   --color-foreground: var(--foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
-  --font-sans: var(--font-geist-sans);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-gold: var(--gold);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --font-sans: var(--font-noto-serif-jp), serif;
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* 青海波パターン（ログイン画面背景用） */
+.pattern-seigaiha {
+  background-color: var(--background);
+  background-image:
+    radial-gradient(circle at 100% 150%, var(--primary) 24%, var(--background) 24%),
+    radial-gradient(circle at 0% 150%, var(--primary) 24%, var(--background) 24%),
+    radial-gradient(circle at 50% 100%, var(--primary) 24%, var(--background) 24%),
+    radial-gradient(circle at 100% 50%, var(--primary) 14%, var(--background) 14%),
+    radial-gradient(circle at 0% 50%, var(--primary) 14%, var(--background) 14%);
+  background-size: 40px 40px;
+  background-position: 0 0;
+  opacity: 0.03;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* 和紙テクスチャ（微細なノイズ） */
+.texture-washi::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.02;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  pointer-events: none;
 }
 
 /* モバイルファースト基本設定 */
@@ -32,7 +92,7 @@ html {
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans), system-ui, sans-serif;
+  font-family: var(--font-sans), serif;
   /* iOS Safari の safe area 対応 */
   padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
@@ -65,4 +125,46 @@ select {
 
 * {
   scrollbar-width: none;
+}
+
+/* カード左アクセントライン */
+.card-accent-line {
+  border-left: 4px solid var(--primary);
+}
+
+/* プライマリボタングラデーション */
+.btn-primary-gradient {
+  background: linear-gradient(to bottom, var(--primary), color-mix(in srgb, var(--primary) 90%, black));
+}
+
+/* 金茶アクティブボーダー */
+.active-gold-border {
+  border-bottom: 2px solid var(--gold);
+  color: var(--gold);
+}
+
+/* PWA Install Prompt アニメーション */
+@keyframes slide-in-from-bottom {
+  from {
+    opacity: 0;
+    transform: translateY(1rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-in {
+  animation-duration: 300ms;
+  animation-timing-function: ease-out;
+  animation-fill-mode: both;
+}
+
+.slide-in-from-bottom-4 {
+  animation-name: slide-in-from-bottom;
+}
+
+.fade-in {
+  animation-name: slide-in-from-bottom;
 }

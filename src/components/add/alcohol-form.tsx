@@ -61,8 +61,8 @@ export function AlcoholForm({ onSubmit }: Props) {
               onClick={() => setType(item.value)}
               className={`py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
                 type === item.value
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-foreground/5 hover:bg-foreground/10"
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "bg-muted border border-border hover:border-primary/40"
               }`}
             >
               {item.label}
@@ -82,20 +82,20 @@ export function AlcoholForm({ onSubmit }: Props) {
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="例: 獺祭 純米大吟醸 磨き二割三分"
-          className="w-full px-4 py-3 rounded-xl bg-foreground/5 border border-foreground/10 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+          className="w-full px-4 py-3 rounded-lg bg-muted border border-border focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
         />
-        <p className="mt-1 text-xs text-foreground/40">
+        <p className="mt-1 text-xs text-muted-foreground">
           AIが詳細情報を自動で取得します
         </p>
       </div>
 
-      {error && <p className="text-sm text-red-500">{error}</p>}
+      {error && <p className="text-sm text-red-600">{error}</p>}
 
       {/* 送信ボタン */}
       <button
         type="submit"
         disabled={loading || !name.trim() || !type}
-        className="w-full py-3 px-4 rounded-xl bg-primary text-primary-foreground font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+        className="w-full py-3 px-4 rounded-lg bg-gradient-to-b from-primary to-primary/90 text-primary-foreground font-medium disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm"
       >
         {loading ? (
           <>

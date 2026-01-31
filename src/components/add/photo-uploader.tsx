@@ -101,15 +101,15 @@ export function PhotoUploader({ onUploaded }: Props) {
       {!preview ? (
         // ファイル選択エリア
         <label className="block cursor-pointer">
-          <div className="aspect-square bg-foreground/5 rounded-xl border-2 border-dashed border-foreground/20 flex flex-col items-center justify-center gap-3 hover:border-foreground/40 transition-colors">
-            <div className="w-16 h-16 rounded-full bg-foreground/10 flex items-center justify-center">
+          <div className="aspect-square bg-muted rounded-lg border-2 border-dashed border-border flex flex-col items-center justify-center gap-3 hover:border-primary/40 transition-colors">
+            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"
                 strokeWidth={1.5}
                 stroke="currentColor"
-                className="w-8 h-8"
+                className="w-8 h-8 text-primary"
               >
                 <path
                   strokeLinecap="round"
@@ -125,7 +125,7 @@ export function PhotoUploader({ onUploaded }: Props) {
             </div>
             <div className="text-center">
               <p className="font-medium">タップして写真を選択</p>
-              <p className="text-sm text-foreground/60">
+              <p className="text-sm text-muted-foreground">
                 カメラで撮影またはギャラリーから選択
               </p>
             </div>
@@ -142,7 +142,7 @@ export function PhotoUploader({ onUploaded }: Props) {
       ) : (
         // プレビュー表示
         <div className="space-y-4">
-          <div className="aspect-square relative rounded-xl overflow-hidden bg-foreground/5">
+          <div className="aspect-square relative rounded-lg overflow-hidden bg-muted border border-border">
             <Image
               src={preview}
               alt="プレビュー"
@@ -155,14 +155,14 @@ export function PhotoUploader({ onUploaded }: Props) {
             <button
               onClick={handleReset}
               disabled={uploading}
-              className="flex-1 py-3 px-4 rounded-xl border border-foreground/20 font-medium disabled:opacity-50"
+              className="flex-1 py-3 px-4 rounded-lg border border-border font-medium disabled:opacity-50 hover:bg-muted transition-colors"
             >
               撮り直す
             </button>
             <button
               onClick={handleUpload}
               disabled={uploading}
-              className="flex-1 py-3 px-4 rounded-xl bg-primary text-primary-foreground font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+              className="flex-1 py-3 px-4 rounded-lg bg-gradient-to-b from-primary to-primary/90 text-primary-foreground font-medium disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm"
             >
               {uploading ? (
                 <>
@@ -197,10 +197,10 @@ export function PhotoUploader({ onUploaded }: Props) {
       )}
 
       {error && (
-        <p className="text-sm text-red-500 text-center">{error}</p>
+        <p className="text-sm text-red-600 text-center">{error}</p>
       )}
 
-      <p className="text-xs text-foreground/40 text-center">
+      <p className="text-xs text-muted-foreground text-center">
         お酒のラベルがはっきり写るように撮影してください
       </p>
     </div>

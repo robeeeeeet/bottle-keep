@@ -77,10 +77,10 @@ export function ReviewForm({ alcoholInfo, photoUrl, onSave, isLoading }: Props) 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* お酒情報カード */}
-      <div className="bg-foreground/5 rounded-xl p-4">
+      <div className="bg-muted rounded-lg border-l-4 border-primary p-4 shadow-sm">
         <div className="flex gap-4">
           {photoUrl ? (
-            <div className="w-20 h-20 relative rounded-lg overflow-hidden flex-shrink-0">
+            <div className="w-20 h-20 relative rounded-lg overflow-hidden flex-shrink-0 border border-border">
               <Image
                 src={photoUrl}
                 alt={alcoholInfo.name}
@@ -89,24 +89,24 @@ export function ReviewForm({ alcoholInfo, photoUrl, onSave, isLoading }: Props) 
               />
             </div>
           ) : (
-            <div className="w-20 h-20 rounded-lg bg-foreground/10 flex items-center justify-center flex-shrink-0">
+            <div className="w-20 h-20 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
               <span className="text-3xl">🍶</span>
             </div>
           )}
           <div className="flex-1 min-w-0">
             <h3 className="font-bold text-lg truncate">{alcoholInfo.name}</h3>
-            <p className="text-sm text-foreground/60">
+            <p className="text-sm text-muted-foreground">
               {alcoholInfo.type}
               {alcoholInfo.subtype && ` / ${alcoholInfo.subtype}`}
             </p>
             {alcoholInfo.origin_country && (
-              <p className="text-sm text-foreground/60">
+              <p className="text-sm text-muted-foreground">
                 {alcoholInfo.origin_country}
                 {alcoholInfo.origin_region && ` ${alcoholInfo.origin_region}`}
               </p>
             )}
             {alcoholInfo.alcohol_percentage && (
-              <p className="text-sm text-foreground/60">
+              <p className="text-sm text-muted-foreground">
                 {alcoholInfo.alcohol_percentage}%
               </p>
             )}
@@ -119,7 +119,7 @@ export function ReviewForm({ alcoholInfo, photoUrl, onSave, isLoading }: Props) 
             {alcoholInfo.characteristics.map((char, i) => (
               <span
                 key={i}
-                className="text-xs px-2 py-1 bg-primary/10 text-primary rounded-full"
+                className="text-xs px-2 py-1 bg-accent/10 text-accent rounded-full"
               >
                 {char}
               </span>
@@ -138,7 +138,7 @@ export function ReviewForm({ alcoholInfo, photoUrl, onSave, isLoading }: Props) 
           type="date"
           value={drinkingDate}
           onChange={(e) => setDrinkingDate(e.target.value)}
-          className="w-full px-4 py-3 rounded-xl bg-foreground/5 border border-foreground/10 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+          className="w-full px-4 py-3 rounded-lg bg-muted border border-border focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
         />
       </div>
 
@@ -158,13 +158,15 @@ export function ReviewForm({ alcoholInfo, photoUrl, onSave, isLoading }: Props) 
               key={star}
               type="button"
               onClick={() => setRating(star)}
-              className="text-3xl px-2 py-1 transition-transform hover:scale-110 active:scale-95"
+              className={`text-3xl px-2 py-1 transition-transform hover:scale-110 active:scale-95 ${
+                star <= rating ? "text-gold" : "text-border"
+              }`}
             >
-              {star <= rating ? "★" : "☆"}
+              ★
             </button>
           ))}
         </div>
-        <p className="text-xs text-foreground/40 mt-1">タップまたはスライドで選択</p>
+        <p className="text-xs text-muted-foreground mt-1">タップまたはスライドで選択</p>
       </div>
 
       {/* メモ */}
@@ -178,17 +180,17 @@ export function ReviewForm({ alcoholInfo, photoUrl, onSave, isLoading }: Props) 
           onChange={(e) => setMemo(e.target.value)}
           placeholder="味の感想、飲んだシチュエーションなど..."
           rows={3}
-          className="w-full px-4 py-3 rounded-xl bg-foreground/5 border border-foreground/10 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+          className="w-full px-4 py-3 rounded-lg bg-muted border border-border focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary resize-none"
         />
       </div>
 
-      {error && <p className="text-sm text-red-500">{error}</p>}
+      {error && <p className="text-sm text-red-600">{error}</p>}
 
       {/* 保存ボタン */}
       <button
         type="submit"
         disabled={isLoading || rating === 0}
-        className="w-full py-3 px-4 rounded-xl bg-primary text-primary-foreground font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+        className="w-full py-3 px-4 rounded-lg bg-gradient-to-b from-primary to-primary/90 text-primary-foreground font-medium disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm"
       >
         {isLoading ? (
           <>

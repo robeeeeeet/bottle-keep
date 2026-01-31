@@ -21,9 +21,12 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col justify-center px-6 py-12 bg-background">
-      <div className="sm:mx-auto sm:w-full sm:max-w-sm">
-        <h1 className="text-center text-3xl font-bold text-foreground">
+    <div className="min-h-screen flex flex-col justify-center px-6 py-12 bg-background relative overflow-hidden">
+      {/* 青海波パターン背景 */}
+      <div className="pattern-seigaiha" />
+
+      <div className="relative z-10 sm:mx-auto sm:w-full sm:max-w-sm">
+        <h1 className="text-center text-3xl font-bold text-primary">
           Bottle Keep
         </h1>
         <p className="mt-2 text-center text-sm text-foreground/60">
@@ -31,11 +34,11 @@ export default function LoginPage() {
         </p>
       </div>
 
-      <div className="mt-10 sm:mx-auto sm:w-full sm:max-w-sm">
+      <div className="relative z-10 mt-10 sm:mx-auto sm:w-full sm:max-w-sm">
         <form action={handleSubmit} className="space-y-6">
           {error && (
             <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
-              <p className="text-sm text-red-500">{error}</p>
+              <p className="text-sm text-red-600">{error}</p>
             </div>
           )}
 
@@ -52,7 +55,7 @@ export default function LoginPage() {
               type="email"
               autoComplete="email"
               required
-              className="mt-2 block w-full rounded-lg border border-foreground/20 bg-background px-4 py-3 text-foreground placeholder:text-foreground/40 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              className="mt-2 block w-full rounded-lg border border-border bg-muted px-4 py-3 text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               placeholder="you@example.com"
             />
           </div>
@@ -70,7 +73,7 @@ export default function LoginPage() {
               type="password"
               autoComplete="current-password"
               required
-              className="mt-2 block w-full rounded-lg border border-foreground/20 bg-background px-4 py-3 text-foreground placeholder:text-foreground/40 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              className="mt-2 block w-full rounded-lg border border-border bg-muted px-4 py-3 text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               placeholder="••••••••"
             />
           </div>
@@ -78,7 +81,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full rounded-lg bg-gradient-to-b from-primary to-primary/90 px-4 py-3 text-sm font-semibold text-primary-foreground hover:from-primary/95 hover:to-primary/85 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
           >
             {isLoading ? "ログイン中..." : "ログイン"}
           </button>
@@ -88,7 +91,7 @@ export default function LoginPage() {
           アカウントをお持ちでない方は{" "}
           <Link
             href="/signup"
-            className="font-semibold text-primary hover:text-primary/80"
+            className="font-semibold text-accent hover:text-accent/80"
           >
             新規登録
           </Link>

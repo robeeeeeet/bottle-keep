@@ -10,7 +10,7 @@ type Props = {
 export function CandidateSelector({ candidates, onSelect }: Props) {
   return (
     <div className="space-y-4">
-      <p className="text-foreground/60">
+      <p className="text-muted-foreground">
         複数の候補が見つかりました。該当するものを選択してください。
       </p>
 
@@ -19,7 +19,7 @@ export function CandidateSelector({ candidates, onSelect }: Props) {
           <button
             key={index}
             onClick={() => onSelect(candidate)}
-            className="w-full text-left p-4 bg-foreground/5 rounded-xl border-2 border-transparent hover:border-primary/40 transition-colors"
+            className="w-full text-left p-4 bg-muted rounded-lg border-l-4 border-transparent hover:border-primary transition-colors shadow-sm"
           >
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
@@ -27,12 +27,12 @@ export function CandidateSelector({ candidates, onSelect }: Props) {
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="font-bold truncate">{candidate.name}</h3>
-                <p className="text-sm text-foreground/60">
+                <p className="text-sm text-muted-foreground">
                   {candidate.type}
                   {candidate.subtype && ` / ${candidate.subtype}`}
                 </p>
                 {candidate.origin_country && (
-                  <p className="text-sm text-foreground/60">
+                  <p className="text-sm text-muted-foreground">
                     {candidate.origin_country}
                     {candidate.origin_region && ` ${candidate.origin_region}`}
                   </p>
@@ -43,7 +43,7 @@ export function CandidateSelector({ candidates, onSelect }: Props) {
                       {candidate.characteristics.slice(0, 3).map((char, i) => (
                         <span
                           key={i}
-                          className="text-xs px-2 py-0.5 bg-primary/10 text-primary rounded-full"
+                          className="text-xs px-2 py-0.5 bg-accent/10 text-accent rounded-full"
                         >
                           {char}
                         </span>
@@ -58,7 +58,7 @@ export function CandidateSelector({ candidates, onSelect }: Props) {
                   viewBox="0 0 24 24"
                   strokeWidth={2}
                   stroke="currentColor"
-                  className="w-5 h-5 text-foreground/40"
+                  className="w-5 h-5 text-muted-foreground"
                 >
                   <path
                     strokeLinecap="round"
@@ -72,7 +72,7 @@ export function CandidateSelector({ candidates, onSelect }: Props) {
         ))}
       </div>
 
-      <p className="text-xs text-foreground/40 text-center">
+      <p className="text-xs text-muted-foreground text-center">
         見つからない場合は、戻って別の銘柄名で検索してください
       </p>
     </div>

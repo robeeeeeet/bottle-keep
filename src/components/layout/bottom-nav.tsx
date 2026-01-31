@@ -70,7 +70,7 @@ export function BottomNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-background border-t border-foreground/10 pb-[env(safe-area-inset-bottom)]">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-primary pb-[env(safe-area-inset-bottom)]">
       <div className="flex justify-around items-center h-16">
         {navItems.map((item) => {
           const isActive = pathname.startsWith(item.href);
@@ -80,12 +80,12 @@ export function BottomNav() {
               href={item.href}
               className={`flex flex-col items-center justify-center w-full h-full gap-1 transition-colors ${
                 isActive
-                  ? "text-primary"
-                  : "text-foreground/60 hover:text-foreground"
+                  ? "text-gold border-b-2 border-gold"
+                  : "text-primary-foreground/70 hover:text-primary-foreground"
               }`}
             >
               {item.icon}
-              <span className="text-xs">{item.label}</span>
+              <span className="text-xs font-medium">{item.label}</span>
             </Link>
           );
         })}
