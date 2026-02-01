@@ -15,8 +15,7 @@ export function PhotoUploader({ onUploaded }: Props) {
   const [compressedBase64, setCompressedBase64] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
-  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -114,11 +113,8 @@ export function PhotoUploader({ onUploaded }: Props) {
     setSelectedFile(null);
     setCompressedBase64(null);
     setError(null);
-    if (cameraInputRef.current) {
-      cameraInputRef.current.value = "";
-    }
-    if (galleryInputRef.current) {
-      galleryInputRef.current.value = "";
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
     }
   };
 
@@ -127,17 +123,17 @@ export function PhotoUploader({ onUploaded }: Props) {
       {!preview ? (
         // 選択肢エリア
         <div className="space-y-4">
-          {/* カメラで撮影ボタン */}
+          {/* 写真を追加ボタン（カメラ/ギャラリー選択はOSに任せる） */}
           <label className="block cursor-pointer">
-            <div className="py-5 px-4 bg-muted rounded-lg border-2 border-dashed border-border flex items-center gap-4 hover:border-primary/40 transition-colors">
-              <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+            <div className="py-6 px-4 bg-muted rounded-lg border-2 border-dashed border-border flex flex-col items-center gap-3 hover:border-primary/40 transition-colors">
+              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   fill="none"
                   viewBox="0 0 24 24"
                   strokeWidth={1.5}
                   stroke="currentColor"
-                  className="w-7 h-7 text-primary"
+                  className="w-8 h-8 text-primary"
                 >
                   <path
                     strokeLinecap="round"
@@ -151,51 +147,15 @@ export function PhotoUploader({ onUploaded }: Props) {
                   />
                 </svg>
               </div>
-              <div>
-                <p className="font-medium">カメラで撮影</p>
+              <div className="text-center">
+                <p className="font-medium text-lg">写真を追加</p>
                 <p className="text-sm text-muted-foreground">
-                  今すぐラベルを撮影する
+                  撮影またはギャラリーから選択
                 </p>
               </div>
             </div>
             <input
-              ref={cameraInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              onChange={handleFileSelect}
-              className="hidden"
-            />
-          </label>
-
-          {/* ギャラリーから選択ボタン */}
-          <label className="block cursor-pointer">
-            <div className="py-5 px-4 bg-muted rounded-lg border-2 border-dashed border-border flex items-center gap-4 hover:border-primary/40 transition-colors">
-              <div className="w-14 h-14 rounded-full bg-secondary/50 flex items-center justify-center flex-shrink-0">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth={1.5}
-                  stroke="currentColor"
-                  className="w-7 h-7 text-secondary-foreground"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"
-                  />
-                </svg>
-              </div>
-              <div>
-                <p className="font-medium">写真を選択</p>
-                <p className="text-sm text-muted-foreground">
-                  ギャラリーから選ぶ
-                </p>
-              </div>
-            </div>
-            <input
-              ref={galleryInputRef}
+              ref={fileInputRef}
               type="file"
               accept="image/*"
               onChange={handleFileSelect}
