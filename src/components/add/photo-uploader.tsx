@@ -3,14 +3,16 @@
 import { useState, useRef } from "react";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
+import { compressAndConvertToBase64 } from "@/lib/image/compressor";
 
 type Props = {
-  onUploaded: (url: string) => void;
+  onUploaded: (url: string, base64: string) => void;
 };
 
 export function PhotoUploader({ onUploaded }: Props) {
   const [preview, setPreview] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [compressedBase64, setCompressedBase64] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -20,14 +22,16 @@ export function PhotoUploader({ onUploaded }: Props) {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // ファイルサイズチェック（10MB以下）
-    if (file.size > 10 * 1024 * 1024) {
-      setError("ファイルサイズは10MB以下にしてください");
+    // ファイルサイズチェック（20MB以下 - 圧縮前）
+    if (file.size > 20 * 1024 * 1024) {
+      setError("ファイルサイズは20MB以下にしてください");
       return;
     }
 
-    // 画像タイプチェック
-    if (!file.type.startsWith("image/")) {
+    // 画像タイプチェック（HEIC含む）
+    const isImage = file.type.startsWith("image/") ||
+      /\.(heic|heif)$/i.test(file.name);
+    if (!isImage) {
       setError("画像ファイルを選択してください");
       return;
     }
@@ -35,16 +39,27 @@ export function PhotoUploader({ onUploaded }: Props) {
     setError(null);
     setSelectedFile(file);
 
-    // プレビュー表示
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setPreview(e.target?.result as string);
-    };
-    reader.readAsDataURL(file);
+    // 画像を圧縮・変換してBase64を取得
+    const result = await compressAndConvertToBase64(file, {
+      maxWidth: 1920,
+      maxHeight: 1920,
+      quality: 0.8,
+    });
+
+    if (!result.success) {
+      setError(result.error);
+      setSelectedFile(null);
+      return;
+    }
+
+    setCompressedBase64(result.base64);
+
+    // プレビュー表示（圧縮後のBase64を使用）
+    setPreview(`data:${result.mimeType};base64,${result.base64}`);
   };
 
   const handleUpload = async () => {
-    if (!selectedFile || !preview) return;
+    if (!selectedFile || !preview || !compressedBase64) return;
 
     setUploading(true);
     setError(null);
@@ -58,16 +73,21 @@ export function PhotoUploader({ onUploaded }: Props) {
       } = await supabase.auth.getUser();
       if (!user) throw new Error("ログインが必要です");
 
-      // ファイル名を生成（ユーザーID + タイムスタンプ + 元の拡張子）
-      const ext = selectedFile.name.split(".").pop();
-      const fileName = `${user.id}/${Date.now()}.${ext}`;
+      // 圧縮済みのBase64からBlobを作成してアップロード
+      const response = await fetch(preview);
+      const blob = await response.blob();
+
+      // ファイル名を生成（ユーザーID + タイムスタンプ + .jpg）
+      // 圧縮後は常にJPEGなので拡張子は固定
+      const fileName = `${user.id}/${Date.now()}.jpg`;
 
       // Supabase Storageにアップロード
       const { error: uploadError } = await supabase.storage
         .from("photos")
-        .upload(fileName, selectedFile, {
+        .upload(fileName, blob, {
           cacheControl: "3600",
           upsert: false,
+          contentType: "image/jpeg",
         });
 
       if (uploadError) throw uploadError;
@@ -77,7 +97,8 @@ export function PhotoUploader({ onUploaded }: Props) {
         data: { publicUrl },
       } = supabase.storage.from("photos").getPublicUrl(fileName);
 
-      onUploaded(publicUrl);
+      // URLとBase64を渡す
+      onUploaded(publicUrl, compressedBase64);
     } catch (err) {
       console.error("Upload error:", err);
       setError(
@@ -91,6 +112,7 @@ export function PhotoUploader({ onUploaded }: Props) {
   const handleReset = () => {
     setPreview(null);
     setSelectedFile(null);
+    setCompressedBase64(null);
     setError(null);
     if (cameraInputRef.current) {
       cameraInputRef.current.value = "";

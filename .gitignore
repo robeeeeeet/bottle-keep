@@ -52,3 +52,6 @@ memo.md
 
 # Playwright MCP screenshots
 .playwright-mcp/
+
+# Test images
+test_images/

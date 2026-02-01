@@ -53,7 +53,7 @@ type Step =
 
 // 元の検索パラメータを保持する型
 type OriginalQuery =
-  | { type: "image"; imageUrl: string }
+  | { type: "image"; imageBase64: string }
   | { type: "text"; text: string; alcoholType: string };
 
 export default function AddPage() {
@@ -69,14 +69,15 @@ export default function AddPage() {
   );
 
   // 写真アップロード完了時 → Geminiで分析
-  const handlePhotoUploaded = async (url: string) => {
+  const handlePhotoUploaded = async (url: string, base64: string) => {
     setPhotoUrl(url);
     setStep("analyzing");
     setAnalyzeError(null);
-    setOriginalQuery({ type: "image", imageUrl: url });
+    setOriginalQuery({ type: "image", imageBase64: base64 });
 
     try {
-      const response = await analyzeAlcohol({ imageUrl: url });
+      // Base64を使って分析（スタックオーバーフロー回避）
+      const response = await analyzeAlcohol({ imageBase64: base64 });
 
       if (response.unique) {
         // 一意に特定できた場合 → 確認画面へ
@@ -139,7 +140,7 @@ export default function AddPage() {
       let response;
       if (originalQuery.type === "image") {
         response = await analyzeAlcohol({
-          imageUrl: originalQuery.imageUrl,
+          imageBase64: originalQuery.imageBase64,
           rejectedName: alcoholInfo.name,
         });
       } else {

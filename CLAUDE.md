@@ -75,6 +75,10 @@ src/app/
 - DB操作（テーブル作成、RLS設定、マイグレーション）は **Supabase MCP** を使用
 - SQLを直接実行せず、MCPツール経由で操作
 
+### Edge Function更新
+- Edge Functionを更新する際は **必ず `supabase/functions/` 配下のファイルも同時に更新** する
+- MCPでデプロイした内容とローカルファイルを常に同期させること
+
 ### ブラウザ確認
 - UI確認は **Playwright MCP** を使用
 - ブラウザは**スマホサイズ（375x667）**で起動
