@@ -335,10 +335,15 @@ export async function deleteMyCollection(): Promise<{ error?: string }> {
     // 誰も使っていないalcoholsを削除
     const orphanedIds = myAlcoholIds.filter((id) => !usedByOthers.has(id));
     if (orphanedIds.length > 0) {
-      await supabase
+      const { error: deleteAlcoholsError } = await supabase
         .from("alcohols")
         .delete()
         .in("id", orphanedIds);
+
+      if (deleteAlcoholsError) {
+        // 孤立データの削除失敗は致命的ではないのでログのみ
+        console.warn("Failed to delete orphaned alcohols:", deleteAlcoholsError);
+      }
     }
   }
 

@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { signup } from "../actions/auth";
 
-export default function SignupPage() {
+function SignupForm() {
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirect") || "/shelf";
 
@@ -303,5 +303,22 @@ export default function SignupPage() {
         <p className="text-xs text-muted-foreground/50">© 2025 Bottle Keep</p>
       </div>
     </div>
+  );
+}
+
+// ローディングフォールバック
+function SignupFormFallback() {
+  return (
+    <div className="min-h-screen flex flex-col justify-center items-center px-6 py-12 bg-background">
+      <div className="w-12 h-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
+    </div>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={<SignupFormFallback />}>
+      <SignupForm />
+    </Suspense>
   );
 }

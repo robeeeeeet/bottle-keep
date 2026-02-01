@@ -39,15 +39,26 @@ export function InviteSection({ currentInvite }: Props) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // フォールバック
-      const textArea = document.createElement("textarea");
-      textArea.value = currentInvite.invite_code;
-      document.body.appendChild(textArea);
-      textArea.select();
-      document.execCommand("copy");
-      document.body.removeChild(textArea);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      // Clipboard API非対応時のフォールバック（非推奨メソッド使用）
+      console.warn(
+        "Clipboard API not available, using deprecated execCommand fallback"
+      );
+      try {
+        const textArea = document.createElement("textarea");
+        textArea.value = currentInvite.invite_code;
+        // 画面外に配置
+        textArea.style.position = "fixed";
+        textArea.style.left = "-9999px";
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textArea);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch (fallbackError) {
+        console.error("Copy failed:", fallbackError);
+        setError("コピーに失敗しました");
+      }
     }
   };
 

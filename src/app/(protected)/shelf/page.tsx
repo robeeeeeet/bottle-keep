@@ -323,17 +323,8 @@ export default async function ShelfPage({
                       ? "自分"
                       : entry.user?.display_name || "ユーザー";
 
-                    return (
-                      <Link
-                        key={entry.id}
-                        href={isMe ? `/shelf/${entry.id}/edit` : "#"}
-                        className={`
-                          flex items-center gap-3 px-3 py-2.5
-                          ${entryIndex > 0 ? "border-t border-border/50" : ""}
-                          ${isMe ? "hover:bg-muted/50 active:scale-[0.99]" : ""}
-                          transition-all
-                        `}
-                      >
+                    const entryContent = (
+                      <>
                         {/* アバター */}
                         <div
                           className={`
@@ -400,7 +391,33 @@ export default async function ShelfPage({
                             </svg>
                           )}
                         </div>
+                      </>
+                    );
+
+                    // 自分のエントリーはリンク、フレンドのは静的表示
+                    return isMe ? (
+                      <Link
+                        key={entry.id}
+                        href={`/shelf/${entry.id}/edit`}
+                        className={`
+                          flex items-center gap-3 px-3 py-2.5
+                          ${entryIndex > 0 ? "border-t border-border/50" : ""}
+                          hover:bg-muted/50 active:scale-[0.99]
+                          transition-all
+                        `}
+                      >
+                        {entryContent}
                       </Link>
+                    ) : (
+                      <div
+                        key={entry.id}
+                        className={`
+                          flex items-center gap-3 px-3 py-2.5 cursor-default
+                          ${entryIndex > 0 ? "border-t border-border/50" : ""}
+                        `}
+                      >
+                        {entryContent}
+                      </div>
                     );
                   })}
 

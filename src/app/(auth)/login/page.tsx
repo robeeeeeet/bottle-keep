@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { login } from "../actions/auth";
 
-export default function LoginPage() {
+function LoginForm() {
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirect") || "/shelf";
 
@@ -176,5 +176,22 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+// ローディングフォールバック
+function LoginFormFallback() {
+  return (
+    <div className="min-h-screen flex flex-col justify-center items-center px-6 py-12 bg-background">
+      <div className="w-12 h-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
+    </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginFormFallback />}>
+      <LoginForm />
+    </Suspense>
   );
 }
