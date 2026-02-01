@@ -1,7 +1,9 @@
 import Image from "next/image";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { logout } from "@/app/(auth)/actions/auth";
 import { HeaderActions } from "@/components/layout/header-actions";
+import { ShelfFilter } from "./_components/shelf-filter";
 
 // コレクションエントリの型定義
 type CollectionEntry = {
@@ -49,20 +51,40 @@ function AlcoholIcon({ type }: { type: string }) {
   return <span className="text-3xl opacity-60">{iconMap[type] || "🍶"}</span>;
 }
 
-export default async function ShelfPage() {
-  const supabase = await createClient();
+// 検索パラメータの型定義
+type SearchParams = {
+  sort?: string;
+  order?: string;
+  type?: string;
+  minRating?: string;
+};
 
-  // コレクションを取得
-  const { data: entries } = (await supabase
-    .from("collection_entries")
-    .select(
-      `
+export default async function ShelfPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
+  const supabase = await createClient();
+  const params = await searchParams;
+
+  // パラメータのデフォルト値
+  const sortField = params.sort || "created_at";
+  const sortOrder = params.order !== "asc"; // デフォルトはdesc（ascending: false）
+  const filterType = params.type || "";
+  const minRating = params.minRating ? parseInt(params.minRating) : null;
+
+  // フィルタが適用されているか
+  const hasFilters = filterType !== "" || minRating !== null;
+
+  // クエリを構築
+  let query = supabase.from("collection_entries").select(
+    `
       id,
       photo_url,
       drinking_date,
       rating,
       memo,
-      alcohols (
+      alcohols!inner (
         id,
         name,
         type,
@@ -70,8 +92,25 @@ export default async function ShelfPage() {
         brand
       )
     `
-    )
-    .order("created_at", { ascending: false })) as {
+  );
+
+  // 種類フィルタ
+  if (filterType) {
+    query = query.eq("alcohols.type", filterType);
+  }
+
+  // 評価フィルタ
+  if (minRating !== null) {
+    query = query.gte("rating", minRating);
+  }
+
+  // ソート（nullは末尾に）
+  query = query.order(sortField, {
+    ascending: sortOrder,
+    nullsFirst: false,
+  });
+
+  const { data: entries } = (await query) as {
     data: CollectionEntry[] | null;
   };
 
@@ -120,6 +159,9 @@ export default async function ShelfPage() {
           </div>
         </div>
       </header>
+
+      {/* フィルタバー */}
+      <ShelfFilter />
 
       {/* メインコンテンツ */}
       <main className="px-4 pt-4 pb-24">
@@ -173,8 +215,54 @@ export default async function ShelfPage() {
               </article>
             ))}
           </div>
+        ) : hasFilters ? (
+          /* フィルタ適用中の空状態 */
+          <div className="flex flex-col items-center justify-center py-20 text-center animate-in fade-in">
+            <div className="empty-state-icon mb-6">
+              <svg
+                className="w-16 h-16 text-primary/30"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1.5}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
+                />
+              </svg>
+            </div>
+
+            <h2 className="text-lg font-bold text-primary mb-2">
+              条件に一致するお酒がありません
+            </h2>
+            <p className="text-sm text-muted-foreground leading-relaxed mb-6">
+              フィルタ条件を変更してみてください
+            </p>
+
+            <Link
+              href="/shelf"
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary-dark transition-colors"
+            >
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+              フィルタをクリア
+            </Link>
+          </div>
         ) : (
-          /* 空状態 */
+          /* 空状態（コレクションが空） */
           <div className="flex flex-col items-center justify-center py-20 text-center animate-in fade-in">
             {/* 水墨画風イラスト */}
             <div className="empty-state-icon mb-6 animate-float">
