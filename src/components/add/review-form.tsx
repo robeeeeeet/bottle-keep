@@ -9,6 +9,7 @@ type Props = {
   photoUrl?: string | null;
   onSave: (data: ReviewData) => Promise<void>;
   isLoading?: boolean;
+  submitLabel?: string;
 };
 
 export type ReviewData = {
@@ -19,7 +20,7 @@ export type ReviewData = {
   memo: string;
 };
 
-export function ReviewForm({ alcoholInfo, photoUrl, onSave, isLoading }: Props) {
+export function ReviewForm({ alcoholInfo, photoUrl, onSave, isLoading, submitLabel = "棚に追加する" }: Props) {
   const [drinkingDate, setDrinkingDate] = useState(
     new Date().toISOString().split("T")[0]
   );
@@ -217,7 +218,7 @@ export function ReviewForm({ alcoholInfo, photoUrl, onSave, isLoading }: Props) 
             保存中...
           </>
         ) : (
-          "棚に追加する"
+          submitLabel
         )}
       </button>
     </form>

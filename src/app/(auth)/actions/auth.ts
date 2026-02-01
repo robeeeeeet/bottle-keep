@@ -4,6 +4,26 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
+// 許可されたリダイレクト先のパスプレフィックス
+const ALLOWED_REDIRECT_PREFIXES = ["/shelf", "/shared", "/add"];
+
+/**
+ * リダイレクト先を検証し、安全なパスのみを許可する
+ * Open Redirect脆弱性を防ぐため、内部パスのみ許可
+ */
+function getSafeRedirectPath(redirectTo: string | null): string {
+  if (!redirectTo) return "/shelf";
+
+  // 相対パスのみ許可（絶対URLや//で始まるプロトコル相対URLを拒否）
+  if (redirectTo.startsWith("http://") || redirectTo.startsWith("https://") || redirectTo.startsWith("//")) {
+    return "/shelf";
+  }
+
+  // 許可されたプレフィックスで始まるパスのみ許可
+  const isAllowed = ALLOWED_REDIRECT_PREFIXES.some(prefix => redirectTo.startsWith(prefix));
+  return isAllowed ? redirectTo : "/shelf";
+}
+
 export async function login(formData: FormData) {
   const supabase = await createClient();
 
@@ -11,6 +31,7 @@ export async function login(formData: FormData) {
     email: formData.get("email") as string,
     password: formData.get("password") as string,
   };
+  const redirectTo = getSafeRedirectPath(formData.get("redirectTo") as string);
 
   const { error } = await supabase.auth.signInWithPassword(data);
 
@@ -19,7 +40,7 @@ export async function login(formData: FormData) {
   }
 
   revalidatePath("/", "layout");
-  redirect("/shelf");
+  redirect(redirectTo);
 }
 
 export async function signup(formData: FormData) {
@@ -58,8 +79,9 @@ export async function signup(formData: FormData) {
   }
 
   // メール確認不要の場合（開発環境など）
+  const redirectTo = getSafeRedirectPath(formData.get("redirectTo") as string);
   revalidatePath("/", "layout");
-  redirect("/shelf");
+  redirect(redirectTo);
 }
 
 export async function logout() {

@@ -55,3 +55,6 @@ memo.md
 
 # Test images
 test_images/
+
+# Test documents with credentials
+docs/tests/sharing-feature.md

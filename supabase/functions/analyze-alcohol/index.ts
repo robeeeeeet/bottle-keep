@@ -103,14 +103,10 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    console.log("[DEBUG] Request received");
-
     // リクエストヘッダーをログ
     const authHeader = req.headers.get("Authorization");
-    console.log("[DEBUG] Auth header exists:", !!authHeader);
 
     if (!authHeader) {
-      console.log("[DEBUG] No auth header - returning 401");
       return new Response(JSON.stringify({ error: "認証が必要です" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -122,7 +118,6 @@ Deno.serve(async (req: Request) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const token = authHeader.replace("Bearer ", "");
-    console.log("[DEBUG] Token length:", token.length);
 
     const {
       data: { user },
@@ -130,29 +125,21 @@ Deno.serve(async (req: Request) => {
     } = await supabase.auth.getUser(token);
 
     if (authError || !user) {
-      console.error("[DEBUG] Auth error:", authError?.message || "No user");
       return new Response(JSON.stringify({ error: "認証に失敗しました" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    console.log("[DEBUG] User authenticated:", user.id);
-
     const apiKey = Deno.env.get("GEMINI_API_KEY");
     if (!apiKey) {
-      console.error("[DEBUG] GEMINI_API_KEY not set");
       throw new Error("GEMINI_API_KEY is not set");
     }
-    console.log("[DEBUG] Gemini API key exists");
 
     const body = await req.json();
-    console.log("[DEBUG] Request body keys:", Object.keys(body));
-
     const { imageUrl, imageBase64, text, type, rejectedName } = body;
 
     if (!imageUrl && !imageBase64 && !text) {
-      console.error("[DEBUG] No input provided");
       throw new Error("imageUrl, imageBase64, or text is required");
     }
 
@@ -161,6 +148,7 @@ Deno.serve(async (req: Request) => {
       model: "gemini-2.5-flash",
       generationConfig: {
         responseMimeType: "application/json",
+        temperature: 0,
       },
     });
 
@@ -176,18 +164,14 @@ Deno.serve(async (req: Request) => {
 
       if (imageBase64) {
         base64Data = imageBase64;
-        console.log("[DEBUG] Using imageBase64");
       } else if (imageUrl) {
-        console.log("[DEBUG] Fetching image from URL:", imageUrl.substring(0, 50) + "...");
         const imageResponse = await fetch(imageUrl);
         if (!imageResponse.ok) {
-          console.error("[DEBUG] Image fetch failed:", imageResponse.status);
           throw new Error(`Failed to fetch image: ${imageResponse.status}`);
         }
         const arrayBuffer = await imageResponse.arrayBuffer();
         base64Data = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
         mimeType = imageResponse.headers.get("content-type") || "image/jpeg";
-        console.log("[DEBUG] Image fetched, size:", arrayBuffer.byteLength);
       }
 
       parts.push({
@@ -226,11 +210,9 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    console.log("[DEBUG] Calling Gemini API...");
     const result = await model.generateContent(parts);
     const response = result.response;
     const responseText = response.text();
-    console.log("[DEBUG] Gemini response length:", responseText.length);
 
     let analyzeResponse: AnalyzeResponse;
     try {
@@ -240,7 +222,6 @@ Deno.serve(async (req: Request) => {
       if (jsonMatch) {
         analyzeResponse = JSON.parse(jsonMatch[0]);
       } else {
-        console.error("[DEBUG] Failed to parse JSON:", responseText.substring(0, 100));
         throw new Error("Failed to parse response as JSON");
       }
     }
@@ -253,12 +234,10 @@ Deno.serve(async (req: Request) => {
       };
     }
 
-    console.log("[DEBUG] Success - returning response");
     return new Response(JSON.stringify(analyzeResponse), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
-    console.error("[DEBUG] Error:", error instanceof Error ? error.message : error);
     return new Response(
       JSON.stringify({
         error: error instanceof Error ? error.message : "Unknown error",
