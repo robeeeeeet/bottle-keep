@@ -22,9 +22,7 @@ interface AlcoholInfo {
 }
 
 interface AnalyzeResponse {
-  // 一意に特定できた場合: true、候補が複数ある場合: false
   unique: boolean;
-  // unique=true の場合は単一のAlcoholInfo、unique=false の場合は候補の配列
   result: AlcoholInfo | null;
   candidates?: AlcoholInfo[];
 }
@@ -105,9 +103,14 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    // Supabaseクライアントで認証を検証
+    console.log("[DEBUG] Request received");
+
+    // リクエストヘッダーをログ
     const authHeader = req.headers.get("Authorization");
+    console.log("[DEBUG] Auth header exists:", !!authHeader);
+
     if (!authHeader) {
+      console.log("[DEBUG] No auth header - returning 401");
       return new Response(JSON.stringify({ error: "認証が必要です" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -118,34 +121,42 @@ Deno.serve(async (req: Request) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // トークンからユーザーを取得して認証を検証
     const token = authHeader.replace("Bearer ", "");
+    console.log("[DEBUG] Token length:", token.length);
+
     const {
       data: { user },
       error: authError,
     } = await supabase.auth.getUser(token);
 
     if (authError || !user) {
-      console.error("Auth error:", authError);
+      console.error("[DEBUG] Auth error:", authError?.message || "No user");
       return new Response(JSON.stringify({ error: "認証に失敗しました" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
+    console.log("[DEBUG] User authenticated:", user.id);
+
     const apiKey = Deno.env.get("GEMINI_API_KEY");
     if (!apiKey) {
+      console.error("[DEBUG] GEMINI_API_KEY not set");
       throw new Error("GEMINI_API_KEY is not set");
     }
+    console.log("[DEBUG] Gemini API key exists");
 
-    const { imageUrl, imageBase64, text, type, rejectedName } = await req.json();
+    const body = await req.json();
+    console.log("[DEBUG] Request body keys:", Object.keys(body));
+
+    const { imageUrl, imageBase64, text, type, rejectedName } = body;
 
     if (!imageUrl && !imageBase64 && !text) {
+      console.error("[DEBUG] No input provided");
       throw new Error("imageUrl, imageBase64, or text is required");
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    // Gemini 2.5 Flash (最新版)
     const model = genAI.getGenerativeModel({
       model: "gemini-2.5-flash",
       generationConfig: {
@@ -157,22 +168,26 @@ Deno.serve(async (req: Request) => {
       { text: string } | { inlineData: { mimeType: string; data: string } }
     > = [];
 
-    // 代替候補を要求されている場合（ユーザーが「違う」と言った場合）
     const requestingAlternatives = !!rejectedName;
 
-    // 画像がある場合
     if (imageUrl || imageBase64) {
       let base64Data: string;
       let mimeType = "image/jpeg";
 
       if (imageBase64) {
         base64Data = imageBase64;
+        console.log("[DEBUG] Using imageBase64");
       } else if (imageUrl) {
-        // URLから画像を取得してbase64に変換
+        console.log("[DEBUG] Fetching image from URL:", imageUrl.substring(0, 50) + "...");
         const imageResponse = await fetch(imageUrl);
+        if (!imageResponse.ok) {
+          console.error("[DEBUG] Image fetch failed:", imageResponse.status);
+          throw new Error(`Failed to fetch image: ${imageResponse.status}`);
+        }
         const arrayBuffer = await imageResponse.arrayBuffer();
         base64Data = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
         mimeType = imageResponse.headers.get("content-type") || "image/jpeg";
+        console.log("[DEBUG] Image fetched, size:", arrayBuffer.byteLength);
       }
 
       parts.push({
@@ -183,7 +198,6 @@ Deno.serve(async (req: Request) => {
       });
 
       if (requestingAlternatives) {
-        // 代替候補を要求
         const prompt = ALTERNATIVES_PROMPT.replace(/{rejectedName}/g, rejectedName);
         parts.push({
           text: prompt + `\n\nこの画像のお酒について、「${rejectedName}」を含む候補を提供してください。`,
@@ -196,11 +210,9 @@ Deno.serve(async (req: Request) => {
         });
       }
     } else {
-      // テキストのみの場合
       const typeText = type ? `種類: ${type}` : "";
 
       if (requestingAlternatives) {
-        // 代替候補を要求
         const prompt = ALTERNATIVES_PROMPT.replace(/{rejectedName}/g, rejectedName);
         parts.push({
           text: prompt + `\n\n検索情報：\n銘柄名: ${text}\n${typeText}`,
@@ -214,27 +226,26 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    console.log("[DEBUG] Calling Gemini API...");
     const result = await model.generateContent(parts);
     const response = result.response;
     const responseText = response.text();
+    console.log("[DEBUG] Gemini response length:", responseText.length);
 
-    // JSONをパース
     let analyzeResponse: AnalyzeResponse;
     try {
       analyzeResponse = JSON.parse(responseText);
     } catch {
-      // JSONパースに失敗した場合、テキストから抽出を試みる
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         analyzeResponse = JSON.parse(jsonMatch[0]);
       } else {
+        console.error("[DEBUG] Failed to parse JSON:", responseText.substring(0, 100));
         throw new Error("Failed to parse response as JSON");
       }
     }
 
-    // 後方互換性: 古い形式のレスポンス（uniqueフィールドがない）を処理
     if (analyzeResponse.unique === undefined) {
-      // 古い形式のAlcoholInfoが直接返された場合
       const legacyResponse = analyzeResponse as unknown as AlcoholInfo;
       analyzeResponse = {
         unique: true,
@@ -242,11 +253,12 @@ Deno.serve(async (req: Request) => {
       };
     }
 
+    console.log("[DEBUG] Success - returning response");
     return new Response(JSON.stringify(analyzeResponse), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
-    console.error("Error:", error);
+    console.error("[DEBUG] Error:", error instanceof Error ? error.message : error);
     return new Response(
       JSON.stringify({
         error: error instanceof Error ? error.message : "Unknown error",
