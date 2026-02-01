@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { logout } from "@/app/(auth)/actions/auth";
 import { HeaderActions } from "@/components/layout/header-actions";
@@ -126,11 +127,13 @@ export default async function ShelfPage() {
         {entries && entries.length > 0 ? (
           <div className="grid grid-cols-2 gap-3">
             {entries.map((entry, index) => (
-              <article
+              <Link
                 key={entry.id}
+                href={`/shelf/${entry.id}/edit`}
                 className={`
-                  card-tatami animate-in scale-in
+                  block card-tatami animate-in scale-in
                   stagger-${Math.min(index + 1, 6)}
+                  active:scale-[0.98] transition-transform
                 `}
               >
                 {/* 写真エリア */}
@@ -170,7 +173,7 @@ export default async function ShelfPage() {
                   </p>
                   {entry.rating && <StarRating rating={entry.rating} />}
                 </div>
-              </article>
+              </Link>
             ))}
           </div>
         ) : (
