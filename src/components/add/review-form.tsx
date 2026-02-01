@@ -20,10 +20,17 @@ export type ReviewData = {
   memo: string;
 };
 
+// ローカルタイムゾーンで今日の日付をYYYY-MM-DD形式で取得
+function getLocalDateString(): string {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export function ReviewForm({ alcoholInfo, photoUrl, onSave, isLoading, submitLabel = "棚に追加する" }: Props) {
-  const [drinkingDate, setDrinkingDate] = useState(
-    new Date().toISOString().split("T")[0]
-  );
+  const [drinkingDate, setDrinkingDate] = useState(getLocalDateString);
   const [rating, setRating] = useState(0);
   const [memo, setMemo] = useState("");
   const [error, setError] = useState<string | null>(null);

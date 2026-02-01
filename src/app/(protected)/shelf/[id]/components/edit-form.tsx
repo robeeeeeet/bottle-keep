@@ -13,9 +13,18 @@ type Props = {
   entry: CollectionEntryWithAlcohol;
 };
 
+// ローカルタイムゾーンで今日の日付をYYYY-MM-DD形式で取得
+function getLocalDateString(): string {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export function EditForm({ entry }: Props) {
   const [drinkingDate, setDrinkingDate] = useState(
-    entry.drinking_date || new Date().toISOString().split("T")[0]
+    entry.drinking_date || getLocalDateString()
   );
   const [rating, setRating] = useState(entry.rating || 0);
   const [memo, setMemo] = useState(entry.memo || "");

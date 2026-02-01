@@ -38,6 +38,13 @@ type GroupedAlcohol = {
   photoUrl: string | null;
 };
 
+// YYYY-MM-DD形式の日付文字列をローカル日付として安全にパースして表示
+function formatDrinkingDate(dateString: string): string {
+  const [year, month, day] = dateString.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  return date.toLocaleDateString("ja-JP", { month: "short", day: "numeric" });
+}
+
 // 星評価コンポーネント
 function StarRating({ rating, size = "sm" }: { rating: number; size?: "sm" | "xs" }) {
   const sizeClass = size === "xs" ? "text-xs" : "text-sm";
@@ -369,10 +376,7 @@ export default async function ShelfPage({
                         <div className="flex items-center gap-2">
                           {entry.drinking_date && (
                             <span className="text-xs text-muted-foreground">
-                              {new Date(entry.drinking_date).toLocaleDateString(
-                                "ja-JP",
-                                { month: "short", day: "numeric" }
-                              )}
+                              {formatDrinkingDate(entry.drinking_date)}
                             </span>
                           )}
                           {isMe && (
