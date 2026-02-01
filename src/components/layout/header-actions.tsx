@@ -4,7 +4,7 @@ import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 
 export function HeaderActions() {
-  const { theme, setTheme, resolvedTheme } = useTheme();
+  const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
   // クライアントサイドでのみレンダリング（ハイドレーション問題回避）
@@ -12,15 +12,9 @@ export function HeaderActions() {
     setMounted(true);
   }, []);
 
-  // テーマ切り替え（ライト → ダーク → システム → ライト...）
-  const cycleTheme = () => {
-    if (theme === "light") {
-      setTheme("dark");
-    } else if (theme === "dark") {
-      setTheme("system");
-    } else {
-      setTheme("light");
-    }
+  // テーマ切り替え（ライト ↔ ダーク）
+  const toggleTheme = () => {
+    setTheme(resolvedTheme === "dark" ? "light" : "dark");
   };
 
   // キャッシュをクリアしてリロード
@@ -51,27 +45,9 @@ export function HeaderActions() {
 
   // テーマアイコンの取得
   const getThemeIcon = () => {
-    if (theme === "system") {
-      return (
-        // システムアイコン（モニター）
-        <svg
-          className="w-4 h-4"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={1.5}
-            d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-          />
-        </svg>
-      );
-    }
     if (resolvedTheme === "dark") {
       return (
-        // 月アイコン
+        // 月アイコン（現在ダーク → クリックでライトに）
         <svg
           className="w-4 h-4"
           fill="none"
@@ -88,7 +64,7 @@ export function HeaderActions() {
       );
     }
     return (
-      // 太陽アイコン
+      // 太陽アイコン（現在ライト → クリックでダークに）
       <svg
         className="w-4 h-4"
         fill="none"
@@ -107,16 +83,14 @@ export function HeaderActions() {
 
   // テーマラベルの取得
   const getThemeLabel = () => {
-    if (theme === "system") return "自動";
-    if (theme === "dark") return "ダーク";
-    return "ライト";
+    return resolvedTheme === "dark" ? "ダーク" : "ライト";
   };
 
   return (
     <div className="flex items-center gap-1">
       {/* テーマ切り替えボタン */}
       <button
-        onClick={cycleTheme}
+        onClick={toggleTheme}
         className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors px-2 py-2 rounded-lg hover:bg-muted"
         title={`テーマ: ${getThemeLabel()}`}
         aria-label={`テーマを切り替え（現在: ${getThemeLabel()}）`}
