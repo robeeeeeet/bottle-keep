@@ -26,8 +26,13 @@ function extractStoragePath(photoUrl: string): string {
   try {
     const url = new URL(photoUrl);
     const parts = url.pathname.split("/photos/");
-    return parts[1] || "";
-  } catch {
+    if (!parts[1]) {
+      console.warn("[extractStoragePath] Invalid photo URL format:", photoUrl);
+      return "";
+    }
+    return parts[1];
+  } catch (err) {
+    console.warn("[extractStoragePath] Failed to parse URL:", photoUrl, err);
     return "";
   }
 }
@@ -76,8 +81,12 @@ export async function updateCollection(params: UpdateCollectionParams) {
         .remove([storagePath]);
 
       if (deleteError) {
-        // 削除失敗はログに記録するが、処理は続行
-        console.error("Failed to delete old photo:", deleteError);
+        // 削除失敗は警告ログに記録（孤児ファイルになる可能性あり）
+        // TODO: 定期クリーンアップジョブで対応を検討
+        console.warn(
+          "[updateCollection] Failed to delete old photo (orphan file may remain):",
+          { storagePath, error: deleteError }
+        );
       }
     }
   }
@@ -123,8 +132,12 @@ export async function deleteCollection(params: DeleteCollectionParams) {
         .remove([storagePath]);
 
       if (storageError) {
-        // 削除失敗はログに記録するが、処理は続行
-        console.error("Failed to delete photo from storage:", storageError);
+        // 削除失敗は警告ログに記録（孤児ファイルになる可能性あり）
+        // TODO: 定期クリーンアップジョブで対応を検討
+        console.warn(
+          "[deleteCollection] Failed to delete photo from storage (orphan file may remain):",
+          { storagePath, error: storageError }
+        );
       }
     }
   }

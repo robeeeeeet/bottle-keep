@@ -2,27 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { EditForm } from "../components/edit-form";
-
-// コレクションエントリの型定義（alcohols を JOIN）
-export type CollectionEntryWithAlcohol = {
-  id: string;
-  photo_url: string | null;
-  drinking_date: string | null;
-  rating: number | null;
-  memo: string | null;
-  alcohols: {
-    id: string;
-    name: string;
-    type: string;
-    subtype: string | null;
-    brand: string | null;
-    producer: string | null;
-    origin_country: string | null;
-    origin_region: string | null;
-    alcohol_percentage: number | null;
-    characteristics: string[] | null;
-  } | null;
-};
+import type { CollectionEntryWithAlcohol } from "@/types/database.types";
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -33,7 +13,7 @@ export default async function EditPage({ params }: Props) {
   const supabase = await createClient();
 
   // コレクションエントリを取得（alcohols を JOIN）
-  const { data: entry, error } = (await supabase
+  const { data: entry, error } = await supabase
     .from("collection_entries")
     .select(
       `
@@ -57,11 +37,22 @@ export default async function EditPage({ params }: Props) {
     `
     )
     .eq("id", id)
-    .single()) as { data: CollectionEntryWithAlcohol | null; error: unknown };
+    .single();
 
   if (error || !entry) {
     notFound();
   }
+
+  // Supabaseの返り値を型安全に変換
+  // Note: .single()を使用しているため、alcoholsは単一オブジェクトとして返される
+  const typedEntry: CollectionEntryWithAlcohol = {
+    id: entry.id,
+    photo_url: entry.photo_url,
+    drinking_date: entry.drinking_date,
+    rating: entry.rating,
+    memo: entry.memo,
+    alcohols: entry.alcohols as unknown as CollectionEntryWithAlcohol["alcohols"],
+  };
 
   return (
     <div className="min-h-screen relative">
@@ -96,7 +87,7 @@ export default async function EditPage({ params }: Props) {
 
       {/* メインコンテンツ */}
       <main className="px-4 pt-4 pb-24">
-        <EditForm entry={entry} />
+        <EditForm entry={typedEntry} />
       </main>
     </div>
   );

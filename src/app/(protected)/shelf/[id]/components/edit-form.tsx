@@ -6,7 +6,8 @@ import { createClient } from "@/lib/supabase/client";
 import { compressAndConvertToBase64 } from "@/lib/image/compressor";
 import { updateCollection, deleteCollection } from "../edit/actions";
 import { DeleteModal } from "./delete-modal";
-import type { CollectionEntryWithAlcohol } from "../edit/page";
+import { Spinner } from "@/components/ui/spinner";
+import type { CollectionEntryWithAlcohol } from "@/types/database.types";
 
 type Props = {
   entry: CollectionEntryWithAlcohol;
@@ -183,26 +184,7 @@ export function EditForm({ entry }: Props) {
             <label className="relative cursor-pointer group flex-shrink-0">
               {isUploading ? (
                 <div className="w-20 h-20 rounded-lg bg-primary/10 flex items-center justify-center border border-border">
-                  <svg
-                    className="animate-spin w-6 h-6 text-primary"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    />
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    />
-                  </svg>
+                  <Spinner className="w-6 h-6 text-primary" />
                 </div>
               ) : photoPreview || photoUrl ? (
                 <div className="w-20 h-20 relative rounded-lg overflow-hidden border border-border">
@@ -367,26 +349,7 @@ export function EditForm({ entry }: Props) {
         >
           {isSaving ? (
             <>
-              <svg
-                className="animate-spin w-5 h-5"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                />
-              </svg>
+              <Spinner />
               保存中...
             </>
           ) : (
