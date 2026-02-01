@@ -55,12 +55,33 @@ const navItems = [
       </svg>
     ),
   },
-  // 共有機能は一時的に非表示
-  // {
-  //   href: "/shared",
-  //   label: "共有",
-  //   icon: (...),
-  // },
+  {
+    href: "/shared",
+    label: "共有",
+    // 人と人をつなぐアイコン
+    icon: (
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="w-6 h-6"
+      >
+        {/* 左の人 */}
+        <circle cx="7" cy="7" r="2" />
+        <path d="M5 14a4 4 0 014-4h0" />
+        {/* 右の人 */}
+        <circle cx="17" cy="7" r="2" />
+        <path d="M15 14a4 4 0 014-4h0" />
+        {/* つながり */}
+        <path d="M9 12h6" />
+        <path d="M12 10v4" />
+      </svg>
+    ),
+  },
 ];
 
 export function BottomNav() {

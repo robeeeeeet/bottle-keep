@@ -12,6 +12,8 @@ type CollectionEntry = {
   drinking_date: string | null;
   rating: number | null;
   memo: string | null;
+  user_id: string;
+  alcohol_id: string;
   alcohols: {
     id: string;
     name: string;
@@ -19,16 +21,32 @@ type CollectionEntry = {
     subtype: string | null;
     brand: string | null;
   } | null;
+  user: {
+    id: string;
+    display_name: string | null;
+    avatar_url: string | null;
+  } | null;
+};
+
+// グループ化されたお酒の型
+type GroupedAlcohol = {
+  alcoholId: string;
+  alcohol: CollectionEntry["alcohols"];
+  entries: CollectionEntry[];
+  maxRating: number;
+  hasMyReview: boolean;
+  photoUrl: string | null;
 };
 
 // 星評価コンポーネント
-function StarRating({ rating }: { rating: number }) {
+function StarRating({ rating, size = "sm" }: { rating: number; size?: "sm" | "xs" }) {
+  const sizeClass = size === "xs" ? "text-xs" : "text-sm";
   return (
-    <div className="flex items-center gap-0.5 mt-1.5">
+    <div className="flex items-center gap-0.5">
       {[1, 2, 3, 4, 5].map((star) => (
         <span
           key={star}
-          className={`text-sm ${
+          className={`${sizeClass} ${
             star <= rating ? "star-gold" : "star-empty"
           }`}
         >
@@ -67,6 +85,12 @@ export default async function ShelfPage({
   const supabase = await createClient();
   const params = await searchParams;
 
+  // 現在のユーザーを取得
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const currentUserId = user?.id;
+
   // パラメータのデフォルト値
   const sortField = params.sort || "created_at";
   const sortOrder = params.order !== "asc"; // デフォルトはdesc（ascending: false）
@@ -76,7 +100,8 @@ export default async function ShelfPage({
   // フィルタが適用されているか
   const hasFilters = filterType !== "" || minRating !== null;
 
-  // クエリを構築
+  // クエリを構築（フレンドのエントリーも取得 - RLSで自動フィルタ）
+  // user:profiles!collection_entries_profiles_fkey で明示的に外部キーを指定
   let query = supabase.from("collection_entries").select(
     `
       id,
@@ -84,15 +109,23 @@ export default async function ShelfPage({
       drinking_date,
       rating,
       memo,
-      alcohols!inner (
+      user_id,
+      alcohol_id,
+      alcohols (
         id,
         name,
         type,
         subtype,
         brand
+      ),
+      user:profiles!collection_entries_profiles_fkey (
+        id,
+        display_name,
+        avatar_url
       )
     `
   );
+
 
   // 種類フィルタ
   if (filterType) {
@@ -104,7 +137,7 @@ export default async function ShelfPage({
     query = query.gte("rating", minRating);
   }
 
-  // ソート（nullは末尾に）
+  // ソート
   query = query.order(sortField, {
     ascending: sortOrder,
     nullsFirst: false,
@@ -113,6 +146,65 @@ export default async function ShelfPage({
   const { data: entries } = (await query) as {
     data: CollectionEntry[] | null;
   };
+
+  // alcohol_idでグループ化
+  const groupedAlcohols: GroupedAlcohol[] = [];
+  const alcoholMap = new Map<string, GroupedAlcohol>();
+
+  if (entries) {
+    for (const entry of entries) {
+      const alcoholId = entry.alcohol_id;
+
+      if (!alcoholMap.has(alcoholId)) {
+        alcoholMap.set(alcoholId, {
+          alcoholId,
+          alcohol: entry.alcohols,
+          entries: [],
+          maxRating: 0,
+          hasMyReview: false,
+          photoUrl: null,
+        });
+      }
+
+      const group = alcoholMap.get(alcoholId)!;
+      group.entries.push(entry);
+
+      // 最高評価を更新
+      if (entry.rating && entry.rating > group.maxRating) {
+        group.maxRating = entry.rating;
+      }
+
+      // 自分のレビューがあるか
+      if (entry.user_id === currentUserId) {
+        group.hasMyReview = true;
+      }
+
+      // 写真URL（最初に見つかったものを使用、自分のを優先）
+      if (entry.photo_url) {
+        if (!group.photoUrl || entry.user_id === currentUserId) {
+          group.photoUrl = entry.photo_url;
+        }
+      }
+    }
+
+    // Mapから配列に変換
+    for (const group of alcoholMap.values()) {
+      groupedAlcohols.push(group);
+    }
+
+    // 評価順の場合は最高評価でソート
+    if (sortField === "rating") {
+      groupedAlcohols.sort((a, b) =>
+        sortOrder ? a.maxRating - b.maxRating : b.maxRating - a.maxRating
+      );
+    }
+  }
+
+  // ユニークなお酒の数をカウント
+  const uniqueAlcoholCount = groupedAlcohols.length;
+  const totalEntryCount = entries?.length || 0;
+  const hasFriendEntries = totalEntryCount > uniqueAlcoholCount ||
+    (entries?.some(e => e.user_id !== currentUserId) ?? false);
 
   return (
     <div className="min-h-screen relative">
@@ -126,10 +218,11 @@ export default async function ShelfPage({
             </div>
             <div>
               <h1 className="text-xl font-bold text-primary tracking-wide">
-                マイ棚
+                {hasFriendEntries ? "みんなの棚" : "マイ棚"}
               </h1>
               <p className="text-xs text-muted-foreground">
-                {entries?.length || 0}本のコレクション
+                {uniqueAlcoholCount}種類のお酒
+                {hasFriendEntries && ` • ${totalEntryCount}件のレビュー`}
               </p>
             </div>
           </div>
@@ -165,56 +258,164 @@ export default async function ShelfPage({
 
       {/* メインコンテンツ */}
       <main className="px-4 pt-4 pb-24">
-        {entries && entries.length > 0 ? (
-          <div className="grid grid-cols-2 gap-3">
-            {entries.map((entry, index) => (
-              <Link
-                key={entry.id}
-                href={`/shelf/${entry.id}/edit`}
+        {groupedAlcohols.length > 0 ? (
+          <div className="space-y-4">
+            {groupedAlcohols.map((group, index) => (
+              <div
+                key={group.alcoholId}
                 className={`
-                  block card-tatami animate-in scale-in
+                  card-tatami animate-in scale-in overflow-hidden
                   stagger-${Math.min(index + 1, 6)}
-                  active:scale-[0.98] transition-transform
                 `}
               >
-                {/* 写真エリア */}
-                {entry.photo_url ? (
-                  <div className="aspect-square relative overflow-hidden">
-                    <Image
-                      src={entry.photo_url}
-                      alt={entry.alcohols?.name || "お酒の写真"}
-                      fill
-                      className="object-cover transition-transform duration-500 hover:scale-105"
-                      sizes="(max-width: 768px) 50vw, 33vw"
-                      priority={index < 4}
-                      loading={index < 4 ? "eager" : "lazy"}
-                    />
-                    {/* 写真下部のグラデーションオーバーレイ */}
-                    <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/30 to-transparent" />
-                  </div>
-                ) : (
-                  <div className="aspect-square photo-placeholder">
-                    <AlcoholIcon type={entry.alcohols?.type || "日本酒"} />
-                  </div>
-                )}
+                {/* お酒情報ヘッダー */}
+                <div className="flex gap-3 p-3">
+                  {/* 写真 */}
+                  {group.photoUrl ? (
+                    <div className="w-20 h-20 relative rounded-lg overflow-hidden flex-shrink-0">
+                      <Image
+                        src={group.photoUrl}
+                        alt={group.alcohol?.name || "お酒の写真"}
+                        fill
+                        className="object-cover"
+                        sizes="80px"
+                        priority={index < 2}
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-20 h-20 rounded-lg photo-placeholder flex-shrink-0 flex items-center justify-center">
+                      <AlcoholIcon type={group.alcohol?.type || "日本酒"} />
+                    </div>
+                  )}
 
-                {/* 情報エリア */}
-                <div className="p-3">
-                  <h3 className="font-semibold text-sm text-foreground leading-tight line-clamp-2">
-                    {entry.alcohols?.name || "名称未設定"}
-                  </h3>
-                  <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary/40" />
-                    {entry.alcohols?.type}
-                    {entry.alcohols?.subtype && (
-                      <span className="opacity-70">
-                        / {entry.alcohols.subtype}
-                      </span>
+                  {/* お酒情報 */}
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-foreground leading-tight line-clamp-2">
+                      {group.alcohol?.name || "名称未設定"}
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary/40" />
+                      {group.alcohol?.type}
+                      {group.alcohol?.subtype && (
+                        <span className="opacity-70">
+                          / {group.alcohol.subtype}
+                        </span>
+                      )}
+                    </p>
+                    {group.maxRating > 0 && (
+                      <div className="mt-1.5 flex items-center gap-2">
+                        <StarRating rating={group.maxRating} />
+                        {group.entries.length > 1 && (
+                          <span className="text-xs text-muted-foreground">
+                            （最高）
+                          </span>
+                        )}
+                      </div>
                     )}
-                  </p>
-                  {entry.rating && <StarRating rating={entry.rating} />}
+                  </div>
                 </div>
-              </Link>
+
+                {/* レビュー一覧 */}
+                <div className="border-t border-border">
+                  {group.entries.map((entry, entryIndex) => {
+                    const isMe = entry.user_id === currentUserId;
+                    const userName = isMe
+                      ? "自分"
+                      : entry.user?.display_name || "ユーザー";
+
+                    return (
+                      <Link
+                        key={entry.id}
+                        href={isMe ? `/shelf/${entry.id}/edit` : "#"}
+                        className={`
+                          flex items-center gap-3 px-3 py-2.5
+                          ${entryIndex > 0 ? "border-t border-border/50" : ""}
+                          ${isMe ? "hover:bg-muted/50 active:scale-[0.99]" : ""}
+                          transition-all
+                        `}
+                      >
+                        {/* アバター */}
+                        <div
+                          className={`
+                            w-8 h-8 rounded-full flex items-center justify-center text-sm
+                            ${isMe ? "bg-primary/10 text-primary" : "bg-accent/10 text-accent"}
+                          `}
+                        >
+                          {entry.user?.avatar_url ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={entry.user.avatar_url}
+                              alt={userName}
+                              className="w-full h-full rounded-full object-cover"
+                            />
+                          ) : (
+                            isMe ? "🍶" : "👤"
+                          )}
+                        </div>
+
+                        {/* レビュー内容 */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`text-sm font-medium ${
+                                isMe ? "text-primary" : "text-accent"
+                              }`}
+                            >
+                              {userName}
+                            </span>
+                            {entry.rating && (
+                              <StarRating rating={entry.rating} size="xs" />
+                            )}
+                          </div>
+                          {entry.memo && (
+                            <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
+                              {entry.memo}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* 日付・編集アイコン */}
+                        <div className="flex items-center gap-2">
+                          {entry.drinking_date && (
+                            <span className="text-xs text-muted-foreground">
+                              {new Date(entry.drinking_date).toLocaleDateString(
+                                "ja-JP",
+                                { month: "short", day: "numeric" }
+                              )}
+                            </span>
+                          )}
+                          {isMe && (
+                            <svg
+                              className="w-4 h-4 text-muted-foreground"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={1.5}
+                                d="M9 5l7 7-7 7"
+                              />
+                            </svg>
+                          )}
+                        </div>
+                      </Link>
+                    );
+                  })}
+
+                  {/* 自分も評価するボタン（自分のレビューがない場合） */}
+                  {!group.hasMyReview && (
+                    <Link
+                      href={`/add?alcoholId=${group.alcoholId}&name=${encodeURIComponent(group.alcohol?.name || "")}`}
+                      className="flex items-center justify-center gap-2 px-3 py-2.5 border-t border-border/50 text-sm text-primary font-medium hover:bg-primary/5 transition-colors"
+                    >
+                      <span>+</span>
+                      自分も評価する
+                    </Link>
+                  )}
+                </div>
+              </div>
             ))}
           </div>
         ) : hasFilters ? (

@@ -11,6 +11,7 @@ export async function login(formData: FormData) {
     email: formData.get("email") as string,
     password: formData.get("password") as string,
   };
+  const redirectTo = (formData.get("redirectTo") as string) || "/shelf";
 
   const { error } = await supabase.auth.signInWithPassword(data);
 
@@ -19,7 +20,7 @@ export async function login(formData: FormData) {
   }
 
   revalidatePath("/", "layout");
-  redirect("/shelf");
+  redirect(redirectTo);
 }
 
 export async function signup(formData: FormData) {
@@ -58,8 +59,9 @@ export async function signup(formData: FormData) {
   }
 
   // メール確認不要の場合（開発環境など）
+  const redirectTo = (formData.get("redirectTo") as string) || "/shelf";
   revalidatePath("/", "layout");
-  redirect("/shelf");
+  redirect(redirectTo);
 }
 
 export async function logout() {

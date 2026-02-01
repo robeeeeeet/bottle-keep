@@ -1,10 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { signup } from "../actions/auth";
 
 export default function SignupPage() {
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get("redirect") || "/shelf";
+
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [emailSent, setEmailSent] = useState<string | null>(null);
@@ -166,6 +170,7 @@ export default function SignupPage() {
       {/* フォームエリア */}
       <div className="relative z-10 mt-8 sm:mx-auto sm:w-full sm:max-w-sm animate-in fade-in stagger-2">
         <form action={handleSubmit} className="space-y-4">
+          <input type="hidden" name="redirectTo" value={redirectTo} />
           {error && (
             <div className="p-4 rounded-lg bg-vermilion/10 border border-vermilion/20 animate-in scale-in">
               <div className="flex items-center gap-2">
@@ -284,7 +289,7 @@ export default function SignupPage() {
           <p className="mt-6 text-sm text-muted-foreground">
             すでにアカウントをお持ちの方は{" "}
             <Link
-              href="/login"
+              href={redirectTo !== "/shelf" ? `/login?redirect=${encodeURIComponent(redirectTo)}` : "/login"}
               className="font-bold text-accent hover:text-accent-light transition-colors underline underline-offset-2"
             >
               ログイン
