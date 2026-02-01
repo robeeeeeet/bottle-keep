@@ -10,7 +10,7 @@ const SORT_OPTIONS = [
   { label: "飲んだ日順", value: "drinking_date", icon: "🍶" },
 ] as const;
 
-// 種類オプション
+// 種類オプション（alcohol-form.tsx と同期）
 const TYPE_OPTIONS = [
   { label: "すべて", value: "" },
   { label: "日本酒", value: "日本酒" },
@@ -18,6 +18,12 @@ const TYPE_OPTIONS = [
   { label: "ビール", value: "ビール" },
   { label: "ウイスキー", value: "ウイスキー" },
   { label: "焼酎", value: "焼酎" },
+  { label: "ブランデー", value: "ブランデー" },
+  { label: "ジン", value: "ジン" },
+  { label: "ラム", value: "ラム" },
+  { label: "テキーラ", value: "テキーラ" },
+  { label: "リキュール", value: "リキュール" },
+  { label: "その他", value: "その他" },
 ] as const;
 
 // 評価オプション
@@ -108,9 +114,9 @@ export function ShelfFilter() {
   return (
     <div
       ref={containerRef}
-      className="sticky top-[73px] z-30 bg-background/95 backdrop-blur-sm border-b border-border-light px-4 py-2"
+      className="sticky top-[73px] z-30 bg-background/95 backdrop-blur-sm border-b border-border-light px-4 py-2 overflow-visible"
     >
-      <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
+      <div className="flex items-center gap-2 overflow-x-clip overflow-y-visible scrollbar-hide">
         {/* ソートドロップダウン */}
         <div className="relative flex-shrink-0">
           <button
@@ -185,7 +191,7 @@ export function ShelfFilter() {
           </button>
 
           {openDropdown === "type" && (
-            <div className="absolute top-full left-0 mt-1 w-36 bg-muted border border-border rounded-lg shadow-lg overflow-hidden z-50 animate-in fade-in scale-in">
+            <div className="absolute top-full left-0 mt-1 w-36 bg-muted border border-border rounded-lg shadow-lg overflow-y-auto max-h-64 z-[60] animate-in fade-in scale-in">
               {TYPE_OPTIONS.map((option) => (
                 <button
                   key={option.value}
