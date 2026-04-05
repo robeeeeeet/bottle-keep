@@ -1,5 +1,6 @@
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { InstallPrompt } from "@/components/pwa/install-prompt";
+import { ChangelogModal } from "@/components/changelog/changelog-modal";
 
 export default function ProtectedLayout({
   children,
@@ -11,6 +12,7 @@ export default function ProtectedLayout({
       {children}
       <BottomNav />
       <InstallPrompt />
+      <ChangelogModal />
     </div>
   );
 }
