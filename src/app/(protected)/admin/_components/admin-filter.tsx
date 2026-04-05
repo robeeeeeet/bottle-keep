@@ -10,7 +10,7 @@ const SORT_OPTIONS = [
   { label: "飲んだ日順", value: "drinking_date", icon: "🍶" },
 ] as const;
 
-// 種類オプション（alcohol-form.tsx と同期）
+// 種類オプション
 const TYPE_OPTIONS = [
   { label: "すべて", value: "" },
   { label: "日本酒", value: "日本酒" },
@@ -38,7 +38,7 @@ const RATING_OPTIONS = [
 
 type DropdownType = "sort" | "type" | "rating" | null;
 
-export function ShelfFilter() {
+export function AdminFilter() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -126,9 +126,9 @@ export function ShelfFilter() {
   return (
     <div
       ref={containerRef}
-      className="sticky top-[73px] z-30 bg-background/95 backdrop-blur-sm border-b border-border-light px-4 py-2 overflow-visible"
+      className="bg-background/95 backdrop-blur-sm border border-red-500/20 rounded-lg px-4 py-2 mb-4 overflow-visible"
     >
-      <div className="flex items-center gap-2 overflow-x-clip overflow-y-visible scrollbar-hide">
+      <div className="flex items-center gap-2 overflow-x-auto overflow-y-visible scrollbar-hide">
         {/* ソートドロップダウン */}
         <div className="relative flex-shrink-0">
           <button
@@ -140,8 +140,8 @@ export function ShelfFilter() {
               border transition-all duration-200
               ${
                 openDropdown === "sort"
-                  ? "border-primary bg-primary/5 text-primary"
-                  : "border-border bg-muted text-foreground hover:border-primary/50"
+                  ? "border-red-500 bg-red-500/5 text-red-500"
+                  : "border-border bg-muted text-foreground hover:border-red-500/50"
               }
             `}
           >
@@ -162,7 +162,7 @@ export function ShelfFilter() {
                     transition-colors
                     ${
                       currentSort === option.value
-                        ? "bg-gold/10 text-gold font-medium"
+                        ? "bg-red-500/10 text-red-500 font-medium"
                         : "hover:bg-background text-foreground"
                     }
                   `}
@@ -170,7 +170,7 @@ export function ShelfFilter() {
                   <span>{option.icon}</span>
                   <span>{option.label}</span>
                   {currentSort === option.value && (
-                    <CheckIcon className="w-4 h-4 ml-auto text-gold" />
+                    <CheckIcon className="w-4 h-4 ml-auto text-red-500" />
                   )}
                 </button>
               ))}
@@ -184,7 +184,7 @@ export function ShelfFilter() {
           className={`
             flex items-center gap-1 px-2.5 py-2 rounded-full text-sm font-medium
             border transition-all duration-200
-            border-border bg-muted text-foreground hover:border-primary/50
+            border-border bg-muted text-foreground hover:border-red-500/50
           `}
           title={currentOrder === "desc" ? "降順（新しい順）" : "昇順（古い順）"}
         >
@@ -203,10 +203,10 @@ export function ShelfFilter() {
               border transition-all duration-200
               ${
                 currentType
-                  ? "border-gold bg-gold/10 text-gold"
+                  ? "border-red-500 bg-red-500/10 text-red-500"
                   : openDropdown === "type"
-                    ? "border-primary bg-primary/5 text-primary"
-                    : "border-border bg-muted text-foreground hover:border-primary/50"
+                    ? "border-red-500 bg-red-500/5 text-red-500"
+                    : "border-border bg-muted text-foreground hover:border-red-500/50"
               }
             `}
           >
@@ -227,14 +227,14 @@ export function ShelfFilter() {
                     transition-colors
                     ${
                       currentType === option.value
-                        ? "bg-gold/10 text-gold font-medium"
+                        ? "bg-red-500/10 text-red-500 font-medium"
                         : "hover:bg-background text-foreground"
                     }
                   `}
                 >
                   <span>{option.label}</span>
                   {currentType === option.value && (
-                    <CheckIcon className="w-4 h-4 ml-auto text-gold" />
+                    <CheckIcon className="w-4 h-4 ml-auto text-red-500" />
                   )}
                 </button>
               ))}
@@ -253,10 +253,10 @@ export function ShelfFilter() {
               border transition-all duration-200
               ${
                 currentMinRating
-                  ? "border-gold bg-gold/10 text-gold"
+                  ? "border-red-500 bg-red-500/10 text-red-500"
                   : openDropdown === "rating"
-                    ? "border-primary bg-primary/5 text-primary"
-                    : "border-border bg-muted text-foreground hover:border-primary/50"
+                    ? "border-red-500 bg-red-500/5 text-red-500"
+                    : "border-border bg-muted text-foreground hover:border-red-500/50"
               }
             `}
           >
@@ -277,14 +277,14 @@ export function ShelfFilter() {
                     transition-colors
                     ${
                       currentMinRating === option.value
-                        ? "bg-gold/10 text-gold font-medium"
+                        ? "bg-red-500/10 text-red-500 font-medium"
                         : "hover:bg-background text-foreground"
                     }
                   `}
                 >
                   <span>{option.label}</span>
                   {currentMinRating === option.value && (
-                    <CheckIcon className="w-4 h-4 ml-auto text-gold" />
+                    <CheckIcon className="w-4 h-4 ml-auto text-red-500" />
                   )}
                 </button>
               ))}
@@ -296,7 +296,7 @@ export function ShelfFilter() {
         {hasFilters && (
           <button
             onClick={clearFilters}
-            className="flex-shrink-0 flex items-center gap-1 px-2.5 py-2 rounded-full text-xs text-muted-foreground hover:text-vermilion hover:bg-vermilion/10 transition-colors"
+            className="flex-shrink-0 flex items-center gap-1 px-2.5 py-2 rounded-full text-xs text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition-colors"
           >
             <XIcon className="w-3.5 h-3.5" />
             <span>クリア</span>
@@ -371,7 +371,6 @@ function OrderIcon({ className, ascending }: { className?: string; ascending: bo
       viewBox="0 0 24 24"
     >
       {ascending ? (
-        // 昇順（↑）- 小さい方から大きい方へ
         <path
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -379,7 +378,6 @@ function OrderIcon({ className, ascending }: { className?: string; ascending: bo
           d="M3 4h13M3 8h9M3 12h5m4 4v-4m0 0l3 3m-3-3l-3 3"
         />
       ) : (
-        // 降順（↓）- 大きい方から小さい方へ
         <path
           strokeLinecap="round"
           strokeLinejoin="round"

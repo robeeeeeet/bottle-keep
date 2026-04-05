@@ -1,23 +1,21 @@
 import Image from "next/image";
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { redirect, notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { AdminFilter } from "./_components/admin-filter";
+import { AdminFilter } from "../../_components/admin-filter";
 
 // 登録データの型定義（RPC関数の戻り値）
-type AdminCollectionEntry = {
+type UserCollectionEntry = {
   id: string;
   photo_url: string | null;
   drinking_date: string | null;
   rating: number | null;
   memo: string | null;
   created_at: string;
-  user_id: string;
   alcohol_id: string;
   alcohol_name: string | null;
   alcohol_type: string | null;
   alcohol_subtype: string | null;
-  user_display_name: string | null;
 };
 
 // 日付フォーマット
@@ -65,19 +63,22 @@ type SearchParams = {
   minRating?: string;
 };
 
-export default async function AdminPage({
+export default async function UserDetailPage({
+  params,
   searchParams,
 }: {
+  params: Promise<{ id: string }>;
   searchParams: Promise<SearchParams>;
 }) {
+  const { id: userId } = await params;
+  const searchParamsResolved = await searchParams;
   const supabase = await createClient();
-  const params = await searchParams;
 
   // フィルタパラメータを取得
-  const sortField = params.sort || "created_at";
-  const sortOrder = params.order !== "asc"; // デフォルトはdesc
-  const filterType = params.type || "";
-  const minRating = params.minRating ? parseInt(params.minRating) : null;
+  const sortField = searchParamsResolved.sort || "created_at";
+  const sortOrder = searchParamsResolved.order !== "asc"; // デフォルトはdesc
+  const filterType = searchParamsResolved.type || "";
+  const minRating = searchParamsResolved.minRating ? parseInt(searchParamsResolved.minRating) : null;
 
   // 現在のユーザーを取得
   const {
@@ -99,27 +100,32 @@ export default async function AdminPage({
     redirect("/shelf");
   }
 
-  // 全ユーザーの登録データを取得（管理者用SECURITY DEFINER関数）
-  const { data: entries } = await supabase.rpc("get_all_collection_entries_admin");
+  // 対象ユーザーのプロフィールを取得（管理者用関数から）
+  const { data: allProfiles } = await supabase.rpc("get_all_profiles_admin");
+  const targetProfile = allProfiles?.find(
+    (p: { id: string }) => p.id === userId
+  );
 
-  // auth.usersからメールアドレスを取得するためのマップを作成
-  const { data: authUsers } = await supabase.rpc("get_user_emails_admin");
-
-  const userEmailMap = new Map<string, string>();
-  if (authUsers) {
-    for (const u of authUsers) {
-      userEmailMap.set(u.id, u.email);
-    }
+  if (!targetProfile) {
+    notFound();
   }
 
-  // ユーザー統計（管理者用関数）
-  const { data: userStats } = await supabase.rpc("get_all_profiles_admin");
+  // 対象ユーザーのメールアドレスを取得
+  const { data: authUsers } = await supabase.rpc("get_user_emails_admin");
+  const userEmail =
+    authUsers?.find((u: { id: string; email: string }) => u.id === userId)
+      ?.email || "不明";
 
-  const totalUsers = userStats?.length || 0;
+  // 対象ユーザーの登録データを取得（管理者用関数）
+  const { data: entries } = await supabase.rpc(
+    "get_user_collection_entries_admin",
+    { target_user_id: userId }
+  );
+
   const totalEntriesRaw = entries?.length || 0;
 
   // エントリーをフィルタリング＆ソート
-  let filteredEntries = (entries as unknown as AdminCollectionEntry[]) || [];
+  let filteredEntries = (entries as unknown as UserCollectionEntry[]) || [];
 
   // 種類フィルタ
   if (filterType) {
@@ -167,9 +173,8 @@ export default async function AdminPage({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link
-              href="/shelf"
+              href="/admin/users"
               className="w-10 h-10 rounded-lg bg-red-500/10 flex items-center justify-center border border-red-500/20 hover:bg-red-500/20 transition-colors"
-              title="棚に戻る"
             >
               <svg
                 className="w-5 h-5 text-red-500"
@@ -187,35 +192,25 @@ export default async function AdminPage({
             </Link>
             <div>
               <h1 className="text-xl font-bold text-red-500 tracking-wide">
-                管理者ダッシュボード
+                {targetProfile.display_name || "名前なし"}
               </h1>
-              <p className="text-xs text-muted-foreground">
-                {totalUsers}人のユーザー • {totalEntriesRaw}件の登録
-              </p>
+              <p className="text-xs text-muted-foreground">{userEmail}</p>
             </div>
           </div>
+          {targetProfile.is_admin && (
+            <span className="text-xs px-2 py-1 bg-red-500/10 text-red-500 rounded-full">
+              管理者
+            </span>
+          )}
         </div>
       </header>
 
       {/* メインコンテンツ */}
       <main className="px-4 pt-4 pb-24">
-        {/* ナビゲーションカード */}
-        <div className="grid grid-cols-2 gap-3 mb-6">
-          <Link
-            href="/admin/users"
-            className="card-tatami p-4 text-center hover:bg-muted/50 transition-colors group"
-          >
-            <p className="text-3xl font-bold text-primary group-hover:scale-110 transition-transform">
-              {totalUsers}
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              ユーザー一覧 →
-            </p>
-          </Link>
-          <div className="card-tatami p-4 text-center">
-            <p className="text-3xl font-bold text-primary">{totalEntries}</p>
-            <p className="text-xs text-muted-foreground mt-1">総登録数</p>
-          </div>
+        {/* 統計 */}
+        <div className="card-tatami p-4 mb-4 flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">登録数</p>
+          <p className="text-2xl font-bold text-primary">{totalEntriesRaw}</p>
         </div>
 
         {/* フィルタバー */}
@@ -229,9 +224,8 @@ export default async function AdminPage({
 
         {filteredEntries.length > 0 ? (
           <div className="space-y-3">
-            {filteredEntries.map((entry, index) => {
-              const email = userEmailMap.get(entry.user_id) || "不明";
-              return (
+            {filteredEntries.map(
+              (entry, index) => (
                 <div
                   key={entry.id}
                   className={`card-tatami p-3 animate-in scale-in stagger-${Math.min(
@@ -282,35 +276,20 @@ export default async function AdminPage({
                     </div>
                   </div>
 
-                  {/* ユーザー情報 */}
+                  {/* 日時 */}
                   <div className="mt-2 pt-2 border-t border-border/50 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-full bg-accent/10 flex items-center justify-center">
-                        <span className="text-xs">👤</span>
-                      </div>
-                      <div>
-                        <p className="text-xs font-medium text-foreground">
-                          {entry.user_display_name || "名前なし"}
-                        </p>
-                        <p className="text-[10px] text-muted-foreground">
-                          {email}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right">
+                    <p className="text-[10px] text-muted-foreground">
+                      {formatDate(entry.created_at)}
+                    </p>
+                    {entry.drinking_date && (
                       <p className="text-[10px] text-muted-foreground">
-                        {formatDate(entry.created_at)}
+                        飲んだ日: {formatSimpleDate(entry.drinking_date)}
                       </p>
-                      {entry.drinking_date && (
-                        <p className="text-[10px] text-muted-foreground">
-                          飲んだ日: {formatSimpleDate(entry.drinking_date)}
-                        </p>
-                      )}
-                    </div>
+                    )}
                   </div>
                 </div>
-              );
-            })}
+              )
+            )}
           </div>
         ) : hasFilters ? (
           <div className="text-center py-12 text-muted-foreground">

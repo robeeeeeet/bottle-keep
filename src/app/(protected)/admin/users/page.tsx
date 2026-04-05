@@ -12,6 +12,14 @@ type UserWithStats = {
   entry_count: number;
 };
 
+// RPC関数の戻り値型
+type ProfileFromRpc = {
+  id: string;
+  display_name: string | null;
+  is_admin: boolean;
+  created_at: string;
+};
+
 // 日付フォーマット
 function formatDate(dateString: string): string {
   const date = new Date(dateString);
@@ -45,11 +53,8 @@ export default async function AdminUsersPage() {
     redirect("/shelf");
   }
 
-  // 全プロフィールを取得
-  const { data: profiles } = await supabase
-    .from("profiles")
-    .select("id, display_name, created_at, is_admin")
-    .order("created_at", { ascending: false });
+  // 全プロフィールを取得（管理者用SECURITY DEFINER関数）
+  const { data: profiles } = await supabase.rpc("get_all_profiles_admin");
 
   // メールアドレスを取得
   const { data: authUsers } = await supabase.rpc("get_user_emails_admin");
@@ -60,21 +65,19 @@ export default async function AdminUsersPage() {
     }
   }
 
-  // 各ユーザーの登録数を取得
-  const { data: entryCounts } = await supabase
-    .from("collection_entries")
-    .select("user_id");
+  // 各ユーザーの登録数を取得（管理者用関数から）
+  const { data: allEntries } = await supabase.rpc("get_all_collection_entries_admin");
 
   const entryCountMap = new Map<string, number>();
-  if (entryCounts) {
-    for (const entry of entryCounts) {
+  if (allEntries) {
+    for (const entry of allEntries) {
       const count = entryCountMap.get(entry.user_id) || 0;
       entryCountMap.set(entry.user_id, count + 1);
     }
   }
 
   // ユーザーデータを統合
-  const users: UserWithStats[] = (profiles || []).map((p) => ({
+  const users: UserWithStats[] = ((profiles || []) as ProfileFromRpc[]).map((p) => ({
     id: p.id,
     display_name: p.display_name,
     email: userEmailMap.get(p.id) || "不明",
@@ -165,13 +168,18 @@ export default async function AdminUsersPage() {
                     </div>
                   </div>
 
-                  {/* 統計 */}
-                  <div className="text-right">
+                  {/* 統計（タップで詳細へ） */}
+                  <Link
+                    href={`/admin/users/${userItem.id}`}
+                    className="text-right px-3 py-2 -mr-3 -my-2 rounded-lg hover:bg-primary/10 transition-colors"
+                  >
                     <p className="text-lg font-bold text-primary">
                       {userItem.entry_count}
                     </p>
-                    <p className="text-[10px] text-muted-foreground">登録数</p>
-                  </div>
+                    <p className="text-[10px] text-muted-foreground">
+                      登録数 →
+                    </p>
+                  </Link>
                 </div>
 
                 {/* フッター */}
