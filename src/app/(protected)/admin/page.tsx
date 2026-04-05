@@ -196,7 +196,7 @@ export default async function AdminPage() {
 
         {entries && entries.length > 0 ? (
           <div className="space-y-3">
-            {(entries as AdminCollectionEntry[]).map((entry, index) => {
+            {(entries as unknown as AdminCollectionEntry[]).map((entry, index) => {
               const email = userEmailMap.get(entry.user_id) || "不明";
               return (
                 <div
