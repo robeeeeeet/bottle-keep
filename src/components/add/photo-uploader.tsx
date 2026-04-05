@@ -15,6 +15,7 @@ export function PhotoUploader({ onUploaded }: Props) {
   const [compressedBase64, setCompressedBase64] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -116,24 +117,27 @@ export function PhotoUploader({ onUploaded }: Props) {
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
+    if (cameraInputRef.current) {
+      cameraInputRef.current.value = "";
+    }
   };
 
   return (
     <div className="space-y-4">
       {!preview ? (
-        // 選択肢エリア
-        <div className="space-y-4">
-          {/* 写真を追加ボタン（カメラ/ギャラリー選択はOSに任せる） */}
+        // 選択肢エリア - カメラとギャラリーを明示的に分離
+        <div className="space-y-3">
+          {/* カメラで撮影ボタン */}
           <label className="block cursor-pointer">
-            <div className="py-6 px-4 bg-muted rounded-lg border-2 border-dashed border-border flex flex-col items-center gap-3 hover:border-primary/40 transition-colors">
-              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+            <div className="py-4 px-4 bg-primary/5 rounded-lg border-2 border-primary/20 flex items-center gap-4 hover:border-primary/40 hover:bg-primary/10 transition-colors">
+              <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   fill="none"
                   viewBox="0 0 24 24"
                   strokeWidth={1.5}
                   stroke="currentColor"
-                  className="w-8 h-8 text-primary"
+                  className="w-7 h-7 text-primary"
                 >
                   <path
                     strokeLinecap="round"
@@ -147,10 +151,46 @@ export function PhotoUploader({ onUploaded }: Props) {
                   />
                 </svg>
               </div>
-              <div className="text-center">
-                <p className="font-medium text-lg">写真を追加</p>
+              <div>
+                <p className="font-medium text-lg text-primary">写真を撮る</p>
                 <p className="text-sm text-muted-foreground">
-                  撮影またはギャラリーから選択
+                  カメラを起動して撮影
+                </p>
+              </div>
+            </div>
+            <input
+              ref={cameraInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+          </label>
+
+          {/* ギャラリーから選択ボタン */}
+          <label className="block cursor-pointer">
+            <div className="py-4 px-4 bg-muted rounded-lg border-2 border-dashed border-border flex items-center gap-4 hover:border-primary/40 transition-colors">
+              <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center flex-shrink-0 border border-border">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={1.5}
+                  stroke="currentColor"
+                  className="w-7 h-7 text-muted-foreground"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"
+                  />
+                </svg>
+              </div>
+              <div>
+                <p className="font-medium text-lg">ライブラリから選ぶ</p>
+                <p className="text-sm text-muted-foreground">
+                  保存済みの写真を選択
                 </p>
               </div>
             </div>
