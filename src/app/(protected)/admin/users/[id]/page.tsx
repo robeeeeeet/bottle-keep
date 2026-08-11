@@ -80,28 +80,35 @@ export default async function UserDetailPage({
   const filterType = searchParamsResolved.type || "";
   const minRating = searchParamsResolved.minRating ? parseInt(searchParamsResolved.minRating) : null;
 
-  // 現在のユーザーを取得
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // 現在のユーザーをJWTからローカル取得（Authサーバーへの往復なし）
+  const { data: claimsData } = await supabase.auth.getClaims();
+  const currentUserId = claimsData?.claims.sub;
 
-  if (!user) {
+  if (!currentUserId) {
     redirect("/login");
   }
 
-  // 管理者チェック
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("is_admin")
-    .eq("id", user.id)
-    .single();
+  // 管理者チェックと管理データ取得を並列実行（描画前に管理者判定でガード）
+  const [profileResult, allProfilesResult, authUsersResult, entriesResult] =
+    await Promise.all([
+      supabase
+        .from("profiles")
+        .select("is_admin")
+        .eq("id", currentUserId)
+        .single(),
+      supabase.rpc("get_all_profiles_admin"),
+      supabase.rpc("get_user_emails_admin"),
+      supabase.rpc("get_user_collection_entries_admin", {
+        target_user_id: userId,
+      }),
+    ]);
 
-  if (!profile?.is_admin) {
+  if (!profileResult.data?.is_admin) {
     redirect("/shelf");
   }
 
-  // 対象ユーザーのプロフィールを取得（管理者用関数から）
-  const { data: allProfiles } = await supabase.rpc("get_all_profiles_admin");
+  // 対象ユーザーのプロフィールを取得
+  const allProfiles = allProfilesResult.data;
   const targetProfile = allProfiles?.find(
     (p: { id: string }) => p.id === userId
   );
@@ -110,17 +117,13 @@ export default async function UserDetailPage({
     notFound();
   }
 
-  // 対象ユーザーのメールアドレスを取得
-  const { data: authUsers } = await supabase.rpc("get_user_emails_admin");
+  // 対象ユーザーのメールアドレス
+  const authUsers = authUsersResult.data;
   const userEmail =
     authUsers?.find((u: { id: string; email: string }) => u.id === userId)
       ?.email || "不明";
 
-  // 対象ユーザーの登録データを取得（管理者用関数）
-  const { data: entries } = await supabase.rpc(
-    "get_user_collection_entries_admin",
-    { target_user_id: userId }
-  );
+  const entries = entriesResult.data;
 
   const totalEntriesRaw = entries?.length || 0;
 

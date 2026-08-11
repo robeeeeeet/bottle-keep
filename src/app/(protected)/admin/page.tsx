@@ -79,31 +79,34 @@ export default async function AdminPage({
   const filterType = params.type || "";
   const minRating = params.minRating ? parseInt(params.minRating) : null;
 
-  // 現在のユーザーを取得
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // 現在のユーザーをJWTからローカル取得（Authサーバーへの往復なし）
+  const { data: claimsData } = await supabase.auth.getClaims();
+  const currentUserId = claimsData?.claims.sub;
 
-  if (!user) {
+  if (!currentUserId) {
     redirect("/login");
   }
 
-  // 管理者チェック
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("is_admin")
-    .eq("id", user.id)
-    .single();
+  // 管理者チェックと管理データ取得を並列実行（描画前に管理者判定でガード）
+  const [profileResult, entriesResult, authUsersResult, userStatsResult] =
+    await Promise.all([
+      supabase
+        .from("profiles")
+        .select("is_admin")
+        .eq("id", currentUserId)
+        .single(),
+      supabase.rpc("get_all_collection_entries_admin"),
+      supabase.rpc("get_user_emails_admin"),
+      supabase.rpc("get_all_profiles_admin"),
+    ]);
 
-  if (!profile?.is_admin) {
+  if (!profileResult.data?.is_admin) {
     redirect("/shelf");
   }
 
-  // 全ユーザーの登録データを取得（管理者用SECURITY DEFINER関数）
-  const { data: entries } = await supabase.rpc("get_all_collection_entries_admin");
-
-  // auth.usersからメールアドレスを取得するためのマップを作成
-  const { data: authUsers } = await supabase.rpc("get_user_emails_admin");
+  const entries = entriesResult.data;
+  const authUsers = authUsersResult.data;
+  const userStats = userStatsResult.data;
 
   const userEmailMap = new Map<string, string>();
   if (authUsers) {
@@ -111,9 +114,6 @@ export default async function AdminPage({
       userEmailMap.set(u.id, u.email);
     }
   }
-
-  // ユーザー統計（管理者用関数）
-  const { data: userStats } = await supabase.rpc("get_all_profiles_admin");
 
   const totalUsers = userStats?.length || 0;
   const totalEntriesRaw = entries?.length || 0;

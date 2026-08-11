@@ -29,30 +29,45 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  // セッションを更新（重要: getUser() を呼ぶことでセッションが更新される）
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // JWTをローカルで検証（ES256非対称鍵 + JWKSキャッシュ）
+  // getUser()と違いAuthサーバーへの往復が発生しない。
+  // トークン期限切れの場合のみ内部でリフレッシュが走る。
+  const { data } = await supabase.auth.getClaims();
+  const user = data?.claims ?? null;
+
+  const pathname = request.nextUrl.pathname;
+
+  // リダイレクト時もリフレッシュされたセッションCookieを引き継ぐ
+  const redirectTo = (path: string) => {
+    const url = request.nextUrl.clone();
+    url.pathname = path;
+    const response = NextResponse.redirect(url);
+    supabaseResponse.cookies.getAll().forEach((cookie) => {
+      response.cookies.set(cookie);
+    });
+    return response;
+  };
+
+  // ルートは認証状態に応じて即リダイレクト（ページ関数を起動させない）
+  if (pathname === "/") {
+    return redirectTo(user ? "/shelf" : "/login");
+  }
 
   // 未認証ユーザーを保護されたルートからリダイレクト
   const isAuthRoute =
-    request.nextUrl.pathname.startsWith("/login") ||
-    request.nextUrl.pathname.startsWith("/signup");
+    pathname.startsWith("/login") || pathname.startsWith("/signup");
   const isProtectedRoute =
-    request.nextUrl.pathname.startsWith("/shelf") ||
-    request.nextUrl.pathname.startsWith("/add") ||
-    request.nextUrl.pathname.startsWith("/shared");
+    pathname.startsWith("/shelf") ||
+    pathname.startsWith("/add") ||
+    pathname.startsWith("/shared") ||
+    pathname.startsWith("/admin");
 
   if (!user && isProtectedRoute) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/login";
-    return NextResponse.redirect(url);
+    return redirectTo("/login");
   }
 
   if (user && isAuthRoute) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/shelf";
-    return NextResponse.redirect(url);
+    return redirectTo("/shelf");
   }
 
   return supabaseResponse;

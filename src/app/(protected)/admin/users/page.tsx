@@ -33,40 +33,41 @@ function formatDate(dateString: string): string {
 export default async function AdminUsersPage() {
   const supabase = await createClient();
 
-  // 現在のユーザーを取得
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // 現在のユーザーをJWTからローカル取得（Authサーバーへの往復なし）
+  const { data: claimsData } = await supabase.auth.getClaims();
+  const currentUserId = claimsData?.claims.sub;
 
-  if (!user) {
+  if (!currentUserId) {
     redirect("/login");
   }
 
-  // 管理者チェック
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("is_admin")
-    .eq("id", user.id)
-    .single();
+  // 管理者チェックと管理データ取得を並列実行（描画前に管理者判定でガード）
+  const [profileResult, profilesResult, authUsersResult, allEntriesResult] =
+    await Promise.all([
+      supabase
+        .from("profiles")
+        .select("is_admin")
+        .eq("id", currentUserId)
+        .single(),
+      supabase.rpc("get_all_profiles_admin"),
+      supabase.rpc("get_user_emails_admin"),
+      supabase.rpc("get_all_collection_entries_admin"),
+    ]);
 
-  if (!profile?.is_admin) {
+  if (!profileResult.data?.is_admin) {
     redirect("/shelf");
   }
 
-  // 全プロフィールを取得（管理者用SECURITY DEFINER関数）
-  const { data: profiles } = await supabase.rpc("get_all_profiles_admin");
+  const profiles = profilesResult.data;
+  const authUsers = authUsersResult.data;
+  const allEntries = allEntriesResult.data;
 
-  // メールアドレスを取得
-  const { data: authUsers } = await supabase.rpc("get_user_emails_admin");
   const userEmailMap = new Map<string, string>();
   if (authUsers) {
     for (const u of authUsers) {
       userEmailMap.set(u.id, u.email);
     }
   }
-
-  // 各ユーザーの登録数を取得（管理者用関数から）
-  const { data: allEntries } = await supabase.rpc("get_all_collection_entries_admin");
 
   const entryCountMap = new Map<string, number>();
   if (allEntries) {

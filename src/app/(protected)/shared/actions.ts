@@ -174,41 +174,46 @@ export async function getSharesAndFriends(): Promise<{
 }> {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // JWTからローカル取得（Authサーバーへの往復なし）
+  const { data: claimsData } = await supabase.auth.getClaims();
+  const userId = claimsData?.claims.sub;
 
-  if (!user) {
+  if (!userId) {
     return { currentInvite: null, friends: [] };
   }
 
-  // 自分の招待コード（最新1件のみ）
-  const { data: currentInviteData } = await supabase
-    .from("shelf_shares")
-    .select("*")
-    .eq("owner_id", user.id)
-    .eq("status", "pending")
-    .is("shared_with_id", null)
-    .not("invite_code", "is", null)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .single();
+  // 招待コードと承認済み共有関係を並列取得
+  const [inviteResult, sharesResult] = await Promise.all([
+    // 自分の招待コード（最新1件のみ）
+    supabase
+      .from("shelf_shares")
+      .select("*")
+      .eq("owner_id", userId)
+      .eq("status", "pending")
+      .is("shared_with_id", null)
+      .not("invite_code", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single(),
+    // 承認済みの共有関係（自分がオーナー or 相手がオーナー）
+    supabase
+      .from("shelf_shares")
+      .select(`
+        *,
+        owner:profiles!shelf_shares_owner_profiles_fkey (id, display_name, avatar_url),
+        shared_with:profiles!shelf_shares_shared_with_profiles_fkey (id, display_name, avatar_url)
+      `)
+      .eq("status", "accepted")
+      .or(`owner_id.eq.${userId},shared_with_id.eq.${userId}`)
+      .order("accepted_at", { ascending: false }),
+  ]);
 
-  // 承認済みの共有関係（自分がオーナー or 相手がオーナー）
-  const { data: acceptedShares } = await supabase
-    .from("shelf_shares")
-    .select(`
-      *,
-      owner:profiles!shelf_shares_owner_profiles_fkey (id, display_name, avatar_url),
-      shared_with:profiles!shelf_shares_shared_with_profiles_fkey (id, display_name, avatar_url)
-    `)
-    .eq("status", "accepted")
-    .or(`owner_id.eq.${user.id},shared_with_id.eq.${user.id}`)
-    .order("accepted_at", { ascending: false });
+  const currentInviteData = inviteResult.data;
+  const acceptedShares = sharesResult.data;
 
   // フレンドリストを構築
   const friends: Friend[] = (acceptedShares || []).map((share) => {
-    const iAmOwner = share.owner_id === user.id;
+    const iAmOwner = share.owner_id === userId;
     const friendProfile = iAmOwner ? share.shared_with : share.owner;
     return {
       id: friendProfile?.id || "",

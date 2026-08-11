@@ -92,19 +92,9 @@ export default async function ShelfPage({
   const supabase = await createClient();
   const params = await searchParams;
 
-  // 現在のユーザーを取得
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const currentUserId = user?.id;
-
-  // 管理者チェック
-  const { data: currentProfile } = await supabase
-    .from("profiles")
-    .select("is_admin")
-    .eq("id", user?.id || "")
-    .single();
-  const isAdmin = currentProfile?.is_admin || false;
+  // 現在のユーザーをJWTからローカル取得（Authサーバーへの往復なし）
+  const { data: claimsData } = await supabase.auth.getClaims();
+  const currentUserId = claimsData?.claims.sub;
 
   // パラメータのデフォルト値
   const sortField = params.sort || "created_at";
@@ -158,9 +148,18 @@ export default async function ShelfPage({
     nullsFirst: false,
   });
 
-  const { data: entries } = (await query) as {
-    data: CollectionEntry[] | null;
-  };
+  // 管理者チェックとコレクション取得を並列実行（逐次だと往復が2倍になる）
+  const [profileResult, entriesResult] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("is_admin")
+      .eq("id", currentUserId || "")
+      .single(),
+    query,
+  ]);
+
+  const isAdmin = profileResult.data?.is_admin || false;
+  const entries = entriesResult.data as CollectionEntry[] | null;
 
   // alcohol_idでグループ化
   const groupedAlcohols: GroupedAlcohol[] = [];
