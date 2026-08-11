@@ -62,19 +62,25 @@ export default async function SharedPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* ヘッダー */}
-      <header className="sticky top-0 z-40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border">
-        <div className="px-4 py-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center text-xl shadow-sm">
-              🤝
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-foreground">つながり</h1>
-              <p className="text-xs text-muted-foreground">
-                招待リンクでフォローしあう
-              </p>
-            </div>
+      {/*
+        ヘッダーは他ページと同じ .header-japanese を使う。
+        独自スタイルだと padding-top: env(safe-area-inset-top) が無く、
+        iOSのステータスバー（時計等）と重なってしまうため。
+      */}
+      <header className="header-japanese sticky top-0 z-40 px-4 py-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center border border-primary/20">
+            <span className="text-primary text-lg" aria-hidden="true">
+              縁
+            </span>
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-primary tracking-wide">
+              つながり
+            </h1>
+            <p className="text-xs text-muted-foreground">
+              招待リンクでフォローしあう
+            </p>
           </div>
         </div>
       </header>

@@ -112,9 +112,9 @@ export function PostCard({ post, variant, unavailable = false }: Props) {
     );
   }
 
-  const body = (
-    <>
-      <div className="flex gap-3 p-3">
+  // 本文（タップで詳細/編集へ）
+  const mainBlock = (
+    <div className="flex gap-3 p-3">
         {/* 写真 */}
         {post.photo_url ? (
           <div className="w-20 h-20 relative rounded-lg overflow-hidden flex-shrink-0">
@@ -159,27 +159,27 @@ export function PostCard({ post, variant, unavailable = false }: Props) {
           )}
         </div>
 
-        {/* 自分の投稿は編集への矢印 */}
-        {variant === "mine" && (
-          <svg
-            className="w-4 h-4 text-muted-foreground self-center flex-shrink-0"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-            aria-hidden="true"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.5}
-              d="M9 5l7 7-7 7"
-            />
-          </svg>
-        )}
-      </div>
+        {/* 詳細・編集へ進めることを示す矢印 */}
+        <svg
+          className="w-4 h-4 text-muted-foreground self-center flex-shrink-0"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={1.5}
+            d="M9 5l7 7-7 7"
+          />
+        </svg>
+    </div>
+  );
 
-      {/* フッター: 投稿者・日付・いいね */}
-      <div className="flex items-center gap-2 px-3 py-2 border-t border-border">
+  // フッターはリンクの外に置く（いいねボタンをリンクで囲むとタップが競合するため）
+  const footer = (
+    <div className="flex items-center gap-2 px-3 py-2 border-t border-border">
         {variant !== "mine" && (
           <span className="flex items-center gap-1.5 min-w-0">
             <span
@@ -211,20 +211,21 @@ export function PostCard({ post, variant, unavailable = false }: Props) {
           )}
         </span>
       </div>
-    </>
   );
 
-  // 自分の投稿だけ編集ページへのリンクにする
-  if (variant === "mine") {
-    return (
-      <Link
-        href={`/shelf/${post.id}/edit`}
-        className="card-tatami overflow-hidden block active:scale-[0.99] transition-transform"
-      >
-        {body}
-      </Link>
-    );
-  }
+  // 自分の投稿は編集画面へ、他人の投稿は詳細画面へ
+  const href =
+    variant === "mine" ? `/shelf/${post.id}/edit` : `/shelf/${post.id}`;
 
-  return <div className="card-tatami overflow-hidden">{body}</div>;
+  return (
+    <div className="card-tatami overflow-hidden">
+      <Link
+        href={href}
+        className="block active:scale-[0.99] transition-transform"
+      >
+        {mainBlock}
+      </Link>
+      {footer}
+    </div>
+  );
 }
