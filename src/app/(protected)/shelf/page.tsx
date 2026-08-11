@@ -1,91 +1,24 @@
-import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { HeaderActions } from "@/components/layout/header-actions";
-import { LogoutButton } from "./_components/logout-button";
+import type { PostCardData } from "@/types/db";
 import { ShelfFilter } from "./_components/shelf-filter";
-
-// コレクションエントリの型定義
-type CollectionEntry = {
-  id: string;
-  photo_url: string | null;
-  drinking_date: string | null;
-  rating: number | null;
-  memo: string | null;
-  user_id: string;
-  alcohol_id: string;
-  alcohols: {
-    id: string;
-    name: string;
-    type: string;
-    subtype: string | null;
-    brand: string | null;
-  } | null;
-  user: {
-    id: string;
-    display_name: string | null;
-    avatar_url: string | null;
-  } | null;
-};
-
-// グループ化されたお酒の型
-type GroupedAlcohol = {
-  alcoholId: string;
-  alcohol: CollectionEntry["alcohols"];
-  entries: CollectionEntry[];
-  maxRating: number;
-  hasMyReview: boolean;
-  photoUrl: string | null;
-};
-
-// YYYY-MM-DD形式の日付文字列をローカル日付として安全にパースして表示
-function formatDrinkingDate(dateString: string): string {
-  const [year, month, day] = dateString.split('-').map(Number);
-  const date = new Date(year, month - 1, day);
-  return date.toLocaleDateString("ja-JP", { month: "short", day: "numeric" });
-}
-
-// 星評価コンポーネント
-function StarRating({ rating, size = "sm" }: { rating: number; size?: "sm" | "xs" }) {
-  const sizeClass = size === "xs" ? "text-xs" : "text-sm";
-  return (
-    <div className="flex items-center gap-0.5">
-      {[1, 2, 3, 4, 5].map((star) => (
-        <span
-          key={star}
-          className={`${sizeClass} ${
-            star <= rating ? "star-gold" : "star-empty"
-          }`}
-        >
-          ★
-        </span>
-      ))}
-    </div>
-  );
-}
-
-// お酒の種類に応じたアイコン
-function AlcoholIcon({ type }: { type: string }) {
-  const iconMap: Record<string, string> = {
-    日本酒: "🍶",
-    ワイン: "🍷",
-    ビール: "🍺",
-    ウイスキー: "🥃",
-    焼酎: "🫗",
-  };
-  return <span className="text-3xl opacity-60">{iconMap[type] || "🍶"}</span>;
-}
+import { LogoutButton } from "./_components/logout-button";
+import { ShelfTabs } from "./_components/shelf-tabs";
+import { PostCard } from "./_components/post-card";
 
 // 検索パラメータの型定義
 type SearchParams = {
+  tab?: string;
   sort?: string;
   order?: string;
   type?: string;
   minRating?: string;
 };
 
-// ソート可能なカラム（不正な値をPostgRESTに渡すと400になるためホワイトリストで検証）
+// 不正な値でクエリが失敗して「投稿ゼロ」に見えるのを防ぐため、
+// 並び替えに使える列はホワイトリストで固定する
 const SORT_FIELDS = ["created_at", "rating", "drinking_date"] as const;
 type SortField = (typeof SORT_FIELDS)[number];
 
@@ -95,13 +28,63 @@ function parseSortField(value: string | undefined): SortField {
     : "created_at";
 }
 
-// 評価フィルタは1〜5の整数のみ許可（それ以外はフィルタなし扱い）
 function parseMinRating(value: string | undefined): number | null {
   if (!value) return null;
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed < 1 || parsed > 5) return null;
   return parsed;
 }
+
+type Tab = "mine" | "following";
+
+function parseTab(value: string | undefined): Tab {
+  return value === "following" ? "following" : "mine";
+}
+
+// Supabaseの埋め込み結果は型推論が配列になるため、必要な形へ寄せる
+type EntryRow = {
+  id: string;
+  photo_url: string | null;
+  drinking_date: string | null;
+  rating: number | null;
+  memo: string | null;
+  created_at: string;
+  user_id: string;
+  like_count: number;
+  alcohols: {
+    id: string;
+    name: string;
+    type: string;
+    subtype: string | null;
+  } | null;
+  author: {
+    id: string;
+    display_name: string | null;
+    avatar_url: string | null;
+  } | null;
+};
+
+const SELECT_COLUMNS = `
+  id,
+  photo_url,
+  drinking_date,
+  rating,
+  memo,
+  created_at,
+  user_id,
+  like_count,
+  alcohols!inner (
+    id,
+    name,
+    type,
+    subtype
+  ),
+  author:profiles!collection_entries_profiles_fkey (
+    id,
+    display_name,
+    avatar_url
+  )
+`;
 
 export default async function ShelfPage({
   searchParams,
@@ -120,63 +103,41 @@ export default async function ShelfPage({
     redirect("/login");
   }
 
-  // パラメータのデフォルト値
+  const tab = parseTab(params.tab);
   const sortField = parseSortField(params.sort);
-  const ascending = params.order === "asc"; // デフォルトはdesc（ascending: false）
+  const ascending = params.order === "asc"; // デフォルトはdesc（新しい順）
   const filterType = params.type || "";
   const minRating = parseMinRating(params.minRating);
-
-  // フィルタが適用されているか
   const hasFilters = filterType !== "" || minRating !== null;
 
-  // クエリを構築（フレンドのエントリーも取得 - RLSで自動フィルタ）
-  // user:profiles!collection_entries_profiles_fkey で明示的に外部キーを指定
-  let query = supabase.from("collection_entries").select(
-    `
-      id,
-      photo_url,
-      drinking_date,
-      rating,
-      memo,
-      user_id,
-      alcohol_id,
-      alcohols!inner (
-        id,
-        name,
-        type,
-        subtype,
-        brand
-      ),
-      user:profiles!collection_entries_profiles_fkey (
-        id,
-        display_name,
-        avatar_url
-      )
-    `
-  );
+  // 投稿の取得。RLSが「自分＋フォロー中の人」に絞るので、
+  // タブごとに user_id の条件だけを切り替える。
+  let query = supabase.from("collection_entries").select(SELECT_COLUMNS);
 
+  if (tab === "mine") {
+    query = query.eq("user_id", currentUserId);
+  } else {
+    query = query.neq("user_id", currentUserId);
+  }
 
-  // 種類フィルタ
   if (filterType) {
+    // 埋め込みへの .eq は alcohols!inner と併用しないと親行が絞られない
     query = query.eq("alcohols.type", filterType);
   }
 
-  // 評価フィルタはグループ化後に「そのお酒の最高評価」で適用するためDBでは絞らない
+  if (minRating !== null) {
+    query = query.gte("rating", minRating);
+  }
 
-  // ソート
-  query = query.order(sortField, {
-    ascending,
-    nullsFirst: false,
-  });
+  query = query.order(sortField, { ascending, nullsFirst: false });
 
-  // 管理者チェックとコレクション取得を並列実行（逐次だと往復が2倍になる）
-  const [profileResult, entriesResult] = await Promise.all([
-    supabase
-      .from("profiles")
-      .select("is_admin")
-      .eq("id", currentUserId)
-      .single(),
+  // フォロー中タブでは、どの投稿に自分がいいね済みかも必要になる
+  const [entriesResult, profileResult, likesResult] = await Promise.all([
     query,
+    supabase.from("profiles").select("is_admin").eq("id", currentUserId).single(),
+    tab === "following"
+      ? supabase.from("post_likes").select("entry_id").eq("user_id", currentUserId)
+      : Promise.resolve({ data: [], error: null }),
   ]);
 
   // 取得に失敗した場合は空状態と誤認させず、error.tsxに拾わせる
@@ -185,72 +146,27 @@ export default async function ShelfPage({
   }
 
   const isAdmin = profileResult.data?.is_admin || false;
-  // PostgRESTの型推論は埋め込みリソースを配列とみなすため unknown 経由でキャスト
-  const entries = entriesResult.data as unknown as CollectionEntry[] | null;
-
-  // alcohol_idでグループ化
-  const groupedAlcohols: GroupedAlcohol[] = [];
-  const alcoholMap = new Map<string, GroupedAlcohol>();
-
-  if (entries) {
-    for (const entry of entries) {
-      const alcoholId = entry.alcohol_id;
-
-      if (!alcoholMap.has(alcoholId)) {
-        alcoholMap.set(alcoholId, {
-          alcoholId,
-          alcohol: entry.alcohols,
-          entries: [],
-          maxRating: 0,
-          hasMyReview: false,
-          photoUrl: null,
-        });
-      }
-
-      const group = alcoholMap.get(alcoholId)!;
-      group.entries.push(entry);
-
-      // 最高評価を更新
-      if (entry.rating && entry.rating > group.maxRating) {
-        group.maxRating = entry.rating;
-      }
-
-      // 自分のレビューがあるか
-      if (entry.user_id === currentUserId) {
-        group.hasMyReview = true;
-      }
-
-      // 写真URL（最初に見つかったものを使用、自分のを優先）
-      if (entry.photo_url) {
-        if (!group.photoUrl || entry.user_id === currentUserId) {
-          group.photoUrl = entry.photo_url;
-        }
-      }
-    }
-
-    // Mapから配列に変換（評価フィルタはお酒ごとの最高評価で絞る）
-    for (const group of alcoholMap.values()) {
-      if (minRating !== null && group.maxRating < minRating) {
-        continue;
-      }
-      groupedAlcohols.push(group);
-    }
-
-    // 評価順の場合は最高評価でソート
-    if (sortField === "rating") {
-      groupedAlcohols.sort((a, b) =>
-        ascending ? a.maxRating - b.maxRating : b.maxRating - a.maxRating
-      );
-    }
-  }
-
-  // ユニークなお酒の数と表示中のレビューをカウント
-  const uniqueAlcoholCount = groupedAlcohols.length;
-  const visibleEntries = groupedAlcohols.flatMap((group) => group.entries);
-  const totalEntryCount = visibleEntries.length;
-  const hasFriendEntries = visibleEntries.some(
-    (e) => e.user_id !== currentUserId
+  const rows = (entriesResult.data ?? []) as unknown as EntryRow[];
+  const likedEntryIds = new Set(
+    (likesResult.data ?? []).map((like) => like.entry_id)
   );
+
+  const posts: PostCardData[] = rows.map((row) => ({
+    id: row.id,
+    photo_url: row.photo_url,
+    drinking_date: row.drinking_date,
+    rating: row.rating,
+    memo: row.memo,
+    created_at: row.created_at,
+    user_id: row.user_id,
+    like_count: row.like_count,
+    alcohol: row.alcohols,
+    author: row.author,
+    likedByMe: likedEntryIds.has(row.id),
+  }));
+
+  const totalLikes =
+    tab === "mine" ? posts.reduce((sum, p) => sum + p.like_count, 0) : 0;
 
   return (
     <div className="min-h-screen relative">
@@ -260,15 +176,17 @@ export default async function ShelfPage({
           <div className="flex items-center gap-3">
             {/* 印鑑風ロゴ */}
             <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center border border-primary/20">
-              <span className="text-primary text-lg">酒</span>
+              <span className="text-primary text-lg" aria-hidden="true">
+                酒
+              </span>
             </div>
             <div>
               <h1 className="text-xl font-bold text-primary tracking-wide">
-                {hasFriendEntries ? "みんなの棚" : "マイ棚"}
+                {tab === "mine" ? "マイ棚" : "フォロー中"}
               </h1>
               <p className="text-xs text-muted-foreground">
-                {uniqueAlcoholCount}種類のお酒
-                {hasFriendEntries && ` • ${totalEntryCount}件のレビュー`}
+                {posts.length}件の投稿
+                {tab === "mine" && totalLikes > 0 && ` • ${totalLikes}件のいいね`}
               </p>
             </div>
           </div>
@@ -279,12 +197,14 @@ export default async function ShelfPage({
                 href="/admin"
                 className="flex items-center gap-1.5 text-sm text-red-500 hover:text-red-400 transition-colors px-2 py-2 rounded-lg hover:bg-red-500/10"
                 title="管理者ページ"
+                aria-label="管理者ページ"
               >
                 <svg
                   className="w-4 h-4"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
+                  aria-hidden="true"
                 >
                   <path
                     strokeLinecap="round"
@@ -307,183 +227,25 @@ export default async function ShelfPage({
         </div>
       </header>
 
-      {/* フィルタバー */}
-      <ShelfFilter />
+      {/*
+        タブとフィルタは1つのsticky枠にまとめる。
+        個別にstickyにすると同じ位置で重なってしまうため。
+      */}
+      <div className="sticky top-[73px] z-30 bg-background/95 backdrop-blur-sm">
+        <ShelfTabs activeTab={tab} />
+        <ShelfFilter />
+      </div>
 
       {/* メインコンテンツ */}
       <main className="px-4 pt-4 pb-24">
-        {groupedAlcohols.length > 0 ? (
-          <div className="space-y-4">
-            {groupedAlcohols.map((group, index) => (
-              <div
-                key={group.alcoholId}
-                className={`
-                  card-tatami animate-in scale-in overflow-hidden
-                  stagger-${Math.min(index + 1, 6)}
-                `}
-              >
-                {/* お酒情報ヘッダー */}
-                <div className="flex gap-3 p-3">
-                  {/* 写真 */}
-                  {group.photoUrl ? (
-                    <div className="w-20 h-20 relative rounded-lg overflow-hidden flex-shrink-0">
-                      <Image
-                        src={group.photoUrl}
-                        alt={group.alcohol?.name || "お酒の写真"}
-                        fill
-                        className="object-cover"
-                        sizes="80px"
-                        priority={index < 2}
-                      />
-                    </div>
-                  ) : (
-                    <div className="w-20 h-20 rounded-lg photo-placeholder flex-shrink-0 flex items-center justify-center">
-                      <AlcoholIcon type={group.alcohol?.type || "日本酒"} />
-                    </div>
-                  )}
-
-                  {/* お酒情報 */}
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-foreground leading-tight line-clamp-2">
-                      {group.alcohol?.name || "名称未設定"}
-                    </h3>
-                    <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary/40" />
-                      {group.alcohol?.type}
-                      {group.alcohol?.subtype && (
-                        <span className="opacity-70">
-                          / {group.alcohol.subtype}
-                        </span>
-                      )}
-                    </p>
-                    {group.maxRating > 0 && (
-                      <div className="mt-1.5 flex items-center gap-2">
-                        <StarRating rating={group.maxRating} />
-                        {group.entries.length > 1 && (
-                          <span className="text-xs text-muted-foreground">
-                            （最高）
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* レビュー一覧 */}
-                <div className="border-t border-border">
-                  {group.entries.map((entry, entryIndex) => {
-                    const isMe = entry.user_id === currentUserId;
-                    const userName = isMe
-                      ? "自分"
-                      : entry.user?.display_name || "ユーザー";
-
-                    const entryContent = (
-                      <>
-                        {/* アバター */}
-                        <div
-                          className={`
-                            w-8 h-8 rounded-full flex items-center justify-center text-sm
-                            ${isMe ? "bg-primary/10 text-primary" : "bg-accent/10 text-accent"}
-                          `}
-                        >
-                          {entry.user?.avatar_url ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={entry.user.avatar_url}
-                              alt={userName}
-                              className="w-full h-full rounded-full object-cover"
-                            />
-                          ) : (
-                            isMe ? "🍶" : "👤"
-                          )}
-                        </div>
-
-                        {/* レビュー内容 */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span
-                              className={`text-sm font-medium ${
-                                isMe ? "text-primary" : "text-accent"
-                              }`}
-                            >
-                              {userName}
-                            </span>
-                            {entry.rating && (
-                              <StarRating rating={entry.rating} size="xs" />
-                            )}
-                          </div>
-                          {entry.memo && (
-                            <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
-                              {entry.memo}
-                            </p>
-                          )}
-                        </div>
-
-                        {/* 日付・編集アイコン */}
-                        <div className="flex items-center gap-2">
-                          {entry.drinking_date && (
-                            <span className="text-xs text-muted-foreground">
-                              {formatDrinkingDate(entry.drinking_date)}
-                            </span>
-                          )}
-                          {isMe && (
-                            <svg
-                              className="w-4 h-4 text-muted-foreground"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={1.5}
-                                d="M9 5l7 7-7 7"
-                              />
-                            </svg>
-                          )}
-                        </div>
-                      </>
-                    );
-
-                    // 自分のエントリーはリンク、フレンドのは静的表示
-                    return isMe ? (
-                      <Link
-                        key={entry.id}
-                        href={`/shelf/${entry.id}/edit`}
-                        className={`
-                          flex items-center gap-3 px-3 py-2.5
-                          ${entryIndex > 0 ? "border-t border-border/50" : ""}
-                          hover:bg-muted/50 active:scale-[0.99]
-                          transition-all
-                        `}
-                      >
-                        {entryContent}
-                      </Link>
-                    ) : (
-                      <div
-                        key={entry.id}
-                        className={`
-                          flex items-center gap-3 px-3 py-2.5 cursor-default
-                          ${entryIndex > 0 ? "border-t border-border/50" : ""}
-                        `}
-                      >
-                        {entryContent}
-                      </div>
-                    );
-                  })}
-
-                  {/* 自分も評価するボタン（自分のレビューがない場合） */}
-                  {!group.hasMyReview && (
-                    <Link
-                      href={`/add?alcoholId=${group.alcoholId}&name=${encodeURIComponent(group.alcohol?.name || "")}`}
-                      className="flex items-center justify-center gap-2 px-3 py-2.5 border-t border-border/50 text-sm text-primary font-medium hover:bg-primary/5 transition-colors"
-                    >
-                      <span>+</span>
-                      自分も評価する
-                    </Link>
-                  )}
-                </div>
-              </div>
+        {posts.length > 0 ? (
+          <div className="space-y-3">
+            {posts.map((post) => (
+              <PostCard
+                key={post.id}
+                post={post}
+                variant={tab === "mine" ? "mine" : "following"}
+              />
             ))}
           </div>
         ) : hasFilters ? (
@@ -496,6 +258,7 @@ export default async function ShelfPage({
                 fill="none"
                 stroke="currentColor"
                 strokeWidth={1.5}
+                aria-hidden="true"
               >
                 <path
                   strokeLinecap="round"
@@ -504,38 +267,54 @@ export default async function ShelfPage({
                 />
               </svg>
             </div>
-
             <h2 className="text-lg font-bold text-primary mb-2">
-              条件に一致するお酒がありません
+              条件に一致する投稿がありません
             </h2>
             <p className="text-sm text-muted-foreground leading-relaxed mb-6">
               フィルタ条件を変更してみてください
             </p>
-
             <Link
-              href="/shelf"
+              href={`/shelf?tab=${tab}`}
               className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary-dark transition-colors"
             >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
               フィルタをクリア
             </Link>
           </div>
-        ) : (
-          /* 空状態（コレクションが空） */
+        ) : tab === "following" ? (
+          /* フォロー中に投稿がない場合 */
           <div className="flex flex-col items-center justify-center py-20 text-center animate-in fade-in">
-            {/* 水墨画風イラスト */}
+            <div className="empty-state-icon mb-6">
+              <svg
+                className="w-16 h-16 text-primary/30"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1.2}
+                aria-hidden="true"
+              >
+                <circle cx="9" cy="8" r="3" />
+                <path d="M4 20a5 5 0 0110 0" />
+                <path d="M17 11h4M19 9v4" strokeLinecap="round" />
+              </svg>
+            </div>
+            <h2 className="text-lg font-bold text-primary mb-2">
+              まだフォローしている人がいません
+            </h2>
+            <p className="text-sm text-muted-foreground leading-relaxed mb-6">
+              招待リンクやQRコードから
+              <br />
+              お酒好きの友人をフォローしましょう
+            </p>
+            <Link
+              href="/shared"
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary-dark transition-colors"
+            >
+              フォローを管理する
+            </Link>
+          </div>
+        ) : (
+          /* 自分の投稿がない場合 */
+          <div className="flex flex-col items-center justify-center py-20 text-center animate-in fade-in">
             <div className="empty-state-icon mb-6 animate-float">
               <svg
                 className="w-16 h-16 text-primary/30"
@@ -543,6 +322,7 @@ export default async function ShelfPage({
                 fill="none"
                 stroke="currentColor"
                 strokeWidth={1}
+                aria-hidden="true"
               >
                 {/* 徳利 */}
                 <path d="M26 16c0-2 2-4 6-4s6 2 6 4" strokeWidth={1.5} />
@@ -553,7 +333,6 @@ export default async function ShelfPage({
                 <path d="M20 62h8" />
               </svg>
             </div>
-
             <h2 className="text-lg font-bold text-primary mb-2">
               まだお酒がありません
             </h2>
@@ -562,8 +341,6 @@ export default async function ShelfPage({
               <br />
               お気に入りのお酒を登録しましょう
             </p>
-
-            {/* ヒント */}
             <div className="mt-8 px-4 py-3 bg-muted rounded-lg border border-border-light max-w-xs">
               <p className="text-xs text-muted-foreground">
                 <span className="text-gold font-medium">ヒント：</span>

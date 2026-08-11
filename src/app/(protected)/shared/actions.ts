@@ -2,35 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-
-// 型定義
-export type ShelfShare = {
-  id: string;
-  owner_id: string;
-  shared_with_id: string | null;
-  invite_code: string | null;
-  status: "pending" | "accepted" | "rejected";
-  created_at: string;
-  accepted_at: string | null;
-  owner?: {
-    id: string;
-    display_name: string | null;
-    avatar_url: string | null;
-  };
-  shared_with?: {
-    id: string;
-    display_name: string | null;
-    avatar_url: string | null;
-  } | null;
-};
-
-export type Friend = {
-  id: string;
-  shareId: string;
-  display_name: string | null;
-  avatar_url: string | null;
-  since: string;
-};
+import type { FollowUser } from "@/types/db";
 
 // Supabaseサーバークライアントの型（ヘルパー関数に渡すため）
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
@@ -39,15 +11,28 @@ const INVITE_CODE_CHARS =
   "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
 const INVITE_CODE_LENGTH = 8;
 
+/** 招待コードとして受け付ける形式（生成時の文字集合＋長さの範囲で緩く検証） */
+const INVITE_CODE_PATTERN = /^[A-Za-z0-9]{4,32}$/;
+
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/**
- * PostgRESTのフィルタ文字列（.or()等）へ値を埋め込む前の形式チェック。
- * JWT由来のIDは本来UUIDだが、手組みのフィルタ文字列に入れる値は必ずここを通す。
- */
+/** PostgRESTのユニーク制約違反 */
+const PG_UNIQUE_VIOLATION = "23505";
+/** RLSポリシー違反（insert/updateがポリシーに弾かれた場合） */
+const PG_RLS_VIOLATION = "42501";
+
 function isUuid(value: string | null | undefined): value is string {
   return typeof value === "string" && UUID_PATTERN.test(value);
+}
+
+/** ログイン中ユーザーのIDをJWTからローカル取得する（Authサーバーへの往復なし） */
+async function getCurrentUserId(
+  supabase: SupabaseServerClient
+): Promise<string | null> {
+  const { data } = await supabase.auth.getClaims();
+  const userId = data?.claims.sub;
+  return isUuid(userId) ? userId : null;
 }
 
 // ユニークな招待コードを生成（CSPRNGベースで予測困難にする）
@@ -71,490 +56,455 @@ function generateInviteCode(): string {
   return code;
 }
 
+/** 「有効なリンクは1ユーザー1本」の部分ユニークindexに当たったかを判定する */
+function isActiveLinkConflict(message: string | undefined): boolean {
+  return (message ?? "").includes("invite_links_one_active_per_user_idx");
+}
+
+// ─────────────────────────────────────────────────────────────────
+// 招待リンク
+// ─────────────────────────────────────────────────────────────────
+
+export type InviteLinkResult = { code: string } | { error: string };
+
 /**
- * 招待レコードを新規作成（コード重複時はリトライ）
- * getOrCreateInvite / regenerateInvite の共通処理
+ * 招待リンクを新規作成する。
+ *
+ * @param reuseExisting 既に有効なリンクがある場合にそれを返すか。
+ *   再発行（regenerate）では旧コードを成功として返してはいけないので false にする。
  */
-async function createInviteWithRetry(
+async function insertInviteLink(
   supabase: SupabaseServerClient,
-  ownerId: string
-): Promise<{ code: string } | { error: string }> {
+  userId: string,
+  reuseExisting: boolean
+): Promise<InviteLinkResult> {
   const maxAttempts = 5;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const { data, error } = await supabase
-      .from("shelf_shares")
-      .insert({
-        owner_id: ownerId,
-        shared_with_id: null,
-        invite_code: generateInviteCode(),
-        status: "pending",
-      })
-      .select("invite_code")
+      .from("invite_links")
+      .insert({ user_id: userId, code: generateInviteCode() })
+      .select("code")
       .single();
 
-    if (!error && data?.invite_code) {
-      revalidatePath("/shared");
-      return { code: data.invite_code };
+    if (!error && data?.code) {
+      return { code: data.code };
     }
 
-    // ユニーク制約エラーの場合は別コードでリトライ
-    if (error?.code === "23505") {
+    if (error?.code === PG_UNIQUE_VIOLATION) {
+      // 「有効なリンクは1ユーザー1本」に当たった場合はコードを変えても解決しない
+      if (isActiveLinkConflict(error.message)) {
+        if (!reuseExisting) {
+          console.error("Active invite link still exists:", error);
+          return {
+            error:
+              "招待リンクの再発行に失敗しました。時間をおいて再度お試しください。",
+          };
+        }
+        const existing = await fetchActiveInviteCode(supabase, userId);
+        if (existing) return { code: existing };
+        return { error: "招待リンクの作成に失敗しました" };
+      }
+      // コード重複なら別のコードでリトライ
       continue;
     }
 
-    console.error("Failed to create invite:", error);
-    return { error: "招待コードの生成に失敗しました" };
+    console.error("Failed to create invite link:", error);
+    return { error: "招待リンクの作成に失敗しました" };
   }
 
-  return { error: "招待コードの生成に失敗しました。再度お試しください。" };
+  return { error: "招待リンクの作成に失敗しました。再度お試しください。" };
 }
 
-/**
- * 招待コードを取得（既存があれば返す、なければ新規作成）
- */
-export async function getOrCreateInvite(): Promise<{ code: string } | { error: string }> {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return { error: "認証が必要です" };
-  }
-
-  // 既存の有効な招待があれば返す
-  const { data: existing } = await supabase
-    .from("shelf_shares")
-    .select("invite_code")
-    .eq("owner_id", user.id)
-    .eq("status", "pending")
-    .is("shared_with_id", null)
-    .not("invite_code", "is", null)
+/** 自分の有効な招待コードを取得する（無ければnull） */
+async function fetchActiveInviteCode(
+  supabase: SupabaseServerClient,
+  userId: string
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("invite_links")
+    .select("code")
+    .eq("user_id", userId)
+    .is("revoked_at", null)
     .order("created_at", { ascending: false })
     .limit(1)
-    .single();
+    .maybeSingle();
 
-  if (existing?.invite_code) {
-    return { code: existing.invite_code };
+  if (error) {
+    console.error("Failed to fetch invite link:", error);
+    return null;
   }
-
-  // なければ新規作成
-  return createInviteWithRetry(supabase, user.id);
+  return data?.code ?? null;
 }
 
 /**
- * 招待コードを再生成（既存を削除して新規作成）
+ * 招待リンクを取得（有効なものが無ければ作成）
  */
-export async function regenerateInvite(): Promise<{ code: string } | { error: string }> {
+export async function createInviteLink(): Promise<InviteLinkResult> {
   const supabase = await createClient();
+  const userId = await getCurrentUserId(supabase);
+  if (!userId) return { error: "認証が必要です" };
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const existing = await fetchActiveInviteCode(supabase, userId);
+  if (existing) return { code: existing };
 
-  if (!user) {
-    return { error: "認証が必要です" };
-  }
-
-  // 既存の未使用招待を削除
-  await supabase
-    .from("shelf_shares")
-    .delete()
-    .eq("owner_id", user.id)
-    .eq("status", "pending")
-    .is("shared_with_id", null);
-
-  // 新規作成
-  return createInviteWithRetry(supabase, user.id);
+  const result = await insertInviteLink(supabase, userId, true);
+  if ("code" in result) revalidatePath("/shared");
+  return result;
 }
 
 /**
- * 自分の招待・フレンド一覧を取得
+ * 招待リンクを再発行する（旧リンクは即座に無効になる）
  */
-export async function getSharesAndFriends(): Promise<{
-  currentInvite: ShelfShare | null;
-  friends: Friend[];
-}> {
+export async function regenerateInviteLink(): Promise<InviteLinkResult> {
   const supabase = await createClient();
+  const userId = await getCurrentUserId(supabase);
+  if (!userId) return { error: "認証が必要です" };
 
-  // JWTからローカル取得（Authサーバーへの往復なし）
-  const { data: claimsData } = await supabase.auth.getClaims();
-  const userId = claimsData?.claims.sub;
+  const revokedAt = new Date().toISOString();
 
-  // 後段の .or() でフィルタ文字列に埋め込むため、UUID形式を検証してから使う
-  if (!isUuid(userId)) {
-    return { currentInvite: null, friends: [] };
+  // 0行更新でも error は null になるため、.select() で実際の更新行を確認する
+  const { error: revokeError } = await supabase
+    .from("invite_links")
+    .update({ revoked_at: revokedAt })
+    .eq("user_id", userId)
+    .is("revoked_at", null)
+    .select("id");
+
+  if (revokeError) {
+    console.error("Failed to revoke invite link:", revokeError);
+    return { error: "旧リンクの無効化に失敗しました" };
   }
 
-  // 招待コードと承認済み共有関係を並列取得
-  const [inviteResult, sharesResult] = await Promise.all([
-    // 自分の招待コード（最新1件のみ）
+  // 無効化が実際に効いていなければ、下のinsertが部分ユニークindexで弾かれる。
+  // その場合に旧コードを返してしまわないよう reuseExisting=false で呼ぶ。
+  const result = await insertInviteLink(supabase, userId, false);
+  if ("code" in result) revalidatePath("/shared");
+  return result;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// フォロー関係の取得
+// ─────────────────────────────────────────────────────────────────
+
+export type FollowData = {
+  /** 自分の有効な招待コード（未作成ならnull） */
+  inviteCode: string | null;
+  /** 自分がフォローしている相手 */
+  following: FollowUser[];
+  /** 自分をフォローしている相手 */
+  followers: FollowUser[];
+};
+
+type EmbeddedProfile = {
+  id: string;
+  display_name: string | null;
+  avatar_url: string | null;
+} | null;
+
+/**
+ * 招待リンク・フォロー中・フォロワーを並列取得する
+ */
+export async function getFollowData(): Promise<FollowData> {
+  const supabase = await createClient();
+  const userId = await getCurrentUserId(supabase);
+  if (!userId) {
+    return { inviteCode: null, following: [], followers: [] };
+  }
+
+  // profilesの埋め込みは follows の外部キー名（follows_followee_id_fkey /
+  // follows_follower_id_fkey）で明示する。profilesのRLSは
+  // 「フォロー関係にある相手」を参照許可しているため、埋め込みでも取得できる。
+  const [inviteResult, followingResult, followersResult] = await Promise.all([
     supabase
-      .from("shelf_shares")
-      .select("*")
-      .eq("owner_id", userId)
-      .eq("status", "pending")
-      .is("shared_with_id", null)
-      .not("invite_code", "is", null)
+      .from("invite_links")
+      .select("code")
+      .eq("user_id", userId)
+      .is("revoked_at", null)
       .order("created_at", { ascending: false })
       .limit(1)
-      .single(),
-    // 承認済みの共有関係（自分がオーナー or 相手がオーナー）
+      .maybeSingle(),
     supabase
-      .from("shelf_shares")
-      .select(`
-        *,
-        owner:profiles!shelf_shares_owner_profiles_fkey (id, display_name, avatar_url),
-        shared_with:profiles!shelf_shares_shared_with_profiles_fkey (id, display_name, avatar_url)
-      `)
-      .eq("status", "accepted")
-      .or(`owner_id.eq.${userId},shared_with_id.eq.${userId}`)
-      .order("accepted_at", { ascending: false }),
+      .from("follows")
+      .select(
+        "followee_id, created_at, profile:profiles!follows_followee_id_fkey (id, display_name, avatar_url)"
+      )
+      .eq("follower_id", userId)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("follows")
+      .select(
+        "follower_id, created_at, profile:profiles!follows_follower_id_fkey (id, display_name, avatar_url)"
+      )
+      .eq("followee_id", userId)
+      .order("created_at", { ascending: false }),
   ]);
 
-  const currentInviteData = inviteResult.data;
-  const acceptedShares = sharesResult.data;
+  if (inviteResult.error) {
+    console.error("Failed to fetch invite link:", inviteResult.error);
+  }
+  if (followingResult.error) {
+    console.error("Failed to fetch following:", followingResult.error);
+  }
+  if (followersResult.error) {
+    console.error("Failed to fetch followers:", followersResult.error);
+  }
 
-  // フレンドリストを構築
-  const friends: Friend[] = (acceptedShares || []).map((share) => {
-    const iAmOwner = share.owner_id === userId;
-    const friendProfile = iAmOwner ? share.shared_with : share.owner;
-    return {
-      id: friendProfile?.id || "",
-      shareId: share.id,
-      display_name: friendProfile?.display_name || null,
-      avatar_url: friendProfile?.avatar_url || null,
-      since: share.accepted_at || share.created_at,
-    };
+  const followingRows = followingResult.data ?? [];
+  const followerRows = followersResult.data ?? [];
+
+  const followingIds = new Set(followingRows.map((row) => row.followee_id));
+  const followerIds = new Set(followerRows.map((row) => row.follower_id));
+
+  const toFollowUser = (
+    id: string,
+    profile: EmbeddedProfile,
+    createdAt: string,
+    isMutual: boolean
+  ): FollowUser => ({
+    id,
+    display_name: profile?.display_name ?? null,
+    avatar_url: profile?.avatar_url ?? null,
+    since: createdAt,
+    isMutual,
   });
 
   return {
-    currentInvite: (currentInviteData as ShelfShare) || null,
-    friends,
+    inviteCode: inviteResult.data?.code ?? null,
+    following: followingRows.map((row) =>
+      toFollowUser(
+        row.followee_id,
+        row.profile as EmbeddedProfile,
+        row.created_at,
+        followerIds.has(row.followee_id)
+      )
+    ),
+    followers: followerRows.map((row) =>
+      toFollowUser(
+        row.follower_id,
+        row.profile as EmbeddedProfile,
+        row.created_at,
+        followingIds.has(row.follower_id)
+      )
+    ),
   };
 }
 
+// ─────────────────────────────────────────────────────────────────
+// フォロー操作
+// ─────────────────────────────────────────────────────────────────
+
+export type ActionResult = { success: true } | { error: string };
+
 /**
- * 招待を削除（オーナーのみ）
+ * フォロー返し（相手が自分をフォローしている場合のみRLSが許可する）
  */
-export async function deleteInvite(shareId: string): Promise<{ error?: string }> {
+export async function followBack(targetUserId: string): Promise<ActionResult> {
+  if (!isUuid(targetUserId)) return { error: "ユーザーIDが不正です" };
+
   const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return { error: "認証が必要です" };
-  }
+  const userId = await getCurrentUserId(supabase);
+  if (!userId) return { error: "認証が必要です" };
+  if (userId === targetUserId) return { error: "自分自身はフォローできません" };
 
   const { error } = await supabase
-    .from("shelf_shares")
-    .delete()
-    .eq("id", shareId)
-    .eq("owner_id", user.id);
+    .from("follows")
+    .insert({ follower_id: userId, followee_id: targetUserId });
 
   if (error) {
-    console.error("Failed to delete invite:", error);
-    return { error: "招待の削除に失敗しました" };
-  }
-
-  revalidatePath("/shared");
-  return {};
-}
-
-/**
- * フレンドを解除
- */
-export async function removeFriend(shareId: string): Promise<{ error?: string }> {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return { error: "認証が必要です" };
-  }
-
-  // 後段の .or() でフィルタ文字列に埋め込むため、UUID形式を検証してから使う
-  if (!isUuid(user.id)) {
-    return { error: "認証情報が不正です" };
-  }
-
-  // 自分がオーナーか、共有された側の場合のみ削除可能
-  const { error } = await supabase
-    .from("shelf_shares")
-    .delete()
-    .eq("id", shareId)
-    .eq("status", "accepted")
-    .or(`owner_id.eq.${user.id},shared_with_id.eq.${user.id}`);
-
-  if (error) {
-    console.error("Failed to remove friend:", error);
-    return { error: "フレンドの解除に失敗しました" };
-  }
-
-  revalidatePath("/shared");
-  revalidatePath("/shelf");
-  return {};
-}
-
-/**
- * 自分のコレクションを全削除（joinByCode からのみ呼ばれる内部関数）
- * - collection_entriesを全削除
- * - 他ユーザーから参照されていないalcoholsを削除（孤立データのクリーンアップ）
- *
- * 【既知のリスク】孤立alcoholsの「参照チェック → 削除」はアトミックではない。
- * チェックと削除の間に他ユーザーが同じalcoholを登録すると、その参照が
- * 巻き込まれて消える可能性がある。DB側のRPC/トランザクションを追加できない
- * 前提のため完全には解消できず、削除直前に再チェックしてレースの
- * ウィンドウを最小化するに留めている。
- *
- * 破壊的操作のため export しない（UIの確認ダイアログを迂回した単独呼び出しを防ぐ）。
- */
-async function deleteMyCollection(): Promise<{ error?: string }> {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return { error: "認証が必要です" };
-  }
-
-  // 1. 自分のcollection_entriesで使用しているalcohol_idを取得
-  const { data: myEntries } = await supabase
-    .from("collection_entries")
-    .select("alcohol_id")
-    .eq("user_id", user.id);
-
-  const myAlcoholIds = Array.from(
-    new Set(myEntries?.map((e) => e.alcohol_id) || [])
-  );
-
-  // 2. 自分のcollection_entriesを全削除
-  const { error: deleteEntriesError } = await supabase
-    .from("collection_entries")
-    .delete()
-    .eq("user_id", user.id);
-
-  if (deleteEntriesError) {
-    console.error("Failed to delete entries:", deleteEntriesError);
-    return { error: "コレクションの削除に失敗しました" };
-  }
-
-  // 3. 他ユーザーから参照されていないalcoholsを削除
-  if (myAlcoholIds.length > 0) {
-    // 他ユーザーが使用しているalcohol_idを取得
-    const { data: othersEntries } = await supabase
-      .from("collection_entries")
-      .select("alcohol_id")
-      .neq("user_id", user.id)
-      .in("alcohol_id", myAlcoholIds);
-
-    const usedByOthers = new Set(othersEntries?.map((e) => e.alcohol_id) || []);
-
-    // 誰も使っていないalcoholsの候補
-    const orphanCandidates = myAlcoholIds.filter((id) => !usedByOthers.has(id));
-
-    if (orphanCandidates.length > 0) {
-      // 削除直前にもう一度参照チェックし、その間に登録された参照を除外する
-      // （レースを完全には防げないがウィンドウを最小化する）
-      const { data: recheckEntries, error: recheckError } = await supabase
-        .from("collection_entries")
-        .select("alcohol_id")
-        .neq("user_id", user.id)
-        .in("alcohol_id", orphanCandidates);
-
-      if (recheckError) {
-        // 参照状況が確認できない場合は削除しない（他人のデータを消すより残す方が安全）
-        console.warn("Skipped orphan cleanup, recheck failed:", recheckError);
-        revalidatePath("/shelf");
-        return {};
-      }
-
-      const stillUsedByOthers = new Set(
-        recheckEntries?.map((e) => e.alcohol_id) || []
-      );
-      const orphanedIds = orphanCandidates.filter(
-        (id) => !stillUsedByOthers.has(id)
-      );
-
-      if (orphanedIds.length > 0) {
-        const { error: deleteAlcoholsError } = await supabase
-          .from("alcohols")
-          .delete()
-          .in("id", orphanedIds);
-
-        if (deleteAlcoholsError) {
-          // 孤立データの削除失敗は致命的ではないのでログのみ
-          console.warn("Failed to delete orphaned alcohols:", deleteAlcoholsError);
-        }
-      }
-    }
-  }
-
-  revalidatePath("/shelf");
-  return {};
-}
-
-/**
- * 招待コードを受諾可能か検証する（非破壊）
- * joinByCode と validateInviteCode の共通処理
- */
-async function resolveJoinableInvite(
-  supabase: SupabaseServerClient,
-  userId: string,
-  code: string
-): Promise<{ invite: { id: string; owner_id: string } } | { error: string }> {
-  // 招待情報を取得して検証
-  const { data: invite, error: fetchError } = await supabase
-    .from("shelf_shares")
-    .select("id, owner_id, status, shared_with_id")
-    .eq("invite_code", code)
-    .single();
-
-  if (fetchError || !invite) {
-    return { error: "招待コードが見つかりません" };
-  }
-
-  // 自分自身への招待は受け入れられない
-  if (invite.owner_id === userId) {
-    return { error: "自分自身の招待コードです" };
-  }
-
-  // 既に誰かが受け入れている
-  if (invite.shared_with_id !== null) {
-    return { error: "この招待コードは既に使用されています" };
-  }
-
-  // 既に承認済み
-  if (invite.status !== "pending") {
-    return { error: "この招待コードは既に処理されています" };
-  }
-
-  // 後段の .or() でフィルタ文字列に埋め込むため、UUID形式を検証してから使う
-  if (!isUuid(invite.owner_id)) {
-    return { error: "招待コードが見つかりません" };
-  }
-
-  // 既にフレンドかチェック
-  const { data: existingShare } = await supabase
-    .from("shelf_shares")
-    .select("id")
-    .eq("status", "accepted")
-    .or(
-      `and(owner_id.eq.${invite.owner_id},shared_with_id.eq.${userId}),and(owner_id.eq.${userId},shared_with_id.eq.${invite.owner_id})`
-    )
-    .single();
-
-  if (existingShare) {
-    return { error: "既にフレンドです" };
-  }
-
-  return { invite: { id: invite.id, owner_id: invite.owner_id } };
-}
-
-/**
- * 招待コードの妥当性のみを確認する（レコードは一切変更しない）
- * 「コレクションを削除して参加」のような不可逆な確認画面へ進む前に呼ぶ。
- */
-export async function validateInviteCode(
-  code: string
-): Promise<{ valid: true } | { error: string }> {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return { error: "認証が必要です" };
-  }
-
-  if (!isUuid(user.id)) {
-    return { error: "認証情報が不正です" };
-  }
-
-  const resolved = await resolveJoinableInvite(supabase, user.id, code);
-  if ("error" in resolved) {
-    return { error: resolved.error };
-  }
-
-  return { valid: true };
-}
-
-/**
- * 招待コードでフレンドに参加
- */
-export async function joinByCode(
-  code: string,
-  options?: { deleteCollection?: boolean }
-): Promise<{ success: boolean } | { error: string }> {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return { error: "認証が必要です" };
-  }
-
-  // 後段の .or() でフィルタ文字列に埋め込むため、UUID形式を検証してから使う
-  if (!isUuid(user.id)) {
-    return { error: "認証情報が不正です" };
-  }
-
-  const resolved = await resolveJoinableInvite(supabase, user.id, code);
-  if ("error" in resolved) {
-    return { error: resolved.error };
-  }
-  const invite = resolved.invite;
-
-  // 招待を受け入れて即フレンドになる
-  // ここまでの検証と実際のUPDATEの間に他者が受諾している可能性があるため、
-  // 条件付きUPDATE + .select() で「実際に更新された行」を確認する。
-  // （0行更新でも error は null になるので、行数を見ないと成功と誤判定する）
-  const { data: acceptedRows, error: updateError } = await supabase
-    .from("shelf_shares")
-    .update({
-      shared_with_id: user.id,
-      status: "accepted",
-      accepted_at: new Date().toISOString(),
-    })
-    .eq("id", invite.id)
-    .eq("status", "pending")
-    .is("shared_with_id", null)
-    .select("id");
-
-  if (updateError) {
-    console.error("Failed to join by code:", updateError);
-    return { error: "参加に失敗しました" };
-  }
-
-  if (!acceptedRows || acceptedRows.length === 0) {
-    // 競合で他者に取られた／既に使用済み。コレクションは削除していないので無害。
-    return { error: "この招待コードは既に使用されています" };
-  }
-
-  // 招待の受諾が確定した後にのみ、オプションのコレクション削除を実行する。
-  // （削除を先に行うと、受諾が失敗した場合にコレクションだけが失われる）
-  if (options?.deleteCollection) {
-    const deleteResult = await deleteMyCollection();
-    if (deleteResult.error) {
-      // フレンド関係自体は成立しているので、画面を更新した上で削除失敗のみ通知
+    // 既にフォロー済みなら成功扱い（二重クリックなど）
+    if (error.code === PG_UNIQUE_VIOLATION) {
       revalidatePath("/shared");
       revalidatePath("/shelf");
-      return { error: `フレンドになりましたが、${deleteResult.error}` };
+      return { success: true };
     }
+    if (error.code === PG_RLS_VIOLATION) {
+      return {
+        error:
+          "フォロー返しできませんでした。相手のフォローが解除された可能性があります。",
+      };
+    }
+    console.error("Failed to follow back:", error);
+    return { error: "フォローに失敗しました" };
   }
 
   revalidatePath("/shared");
   revalidatePath("/shelf");
   return { success: true };
+}
+
+/**
+ * フォローを解除する（自分がフォローしている側の行を削除）
+ */
+export async function unfollow(targetUserId: string): Promise<ActionResult> {
+  if (!isUuid(targetUserId)) return { error: "ユーザーIDが不正です" };
+
+  const supabase = await createClient();
+  const userId = await getCurrentUserId(supabase);
+  if (!userId) return { error: "認証が必要です" };
+
+  // 0行削除でも error は null になるため、.select() で実際の削除行を確認する
+  const { data, error } = await supabase
+    .from("follows")
+    .delete()
+    .eq("follower_id", userId)
+    .eq("followee_id", targetUserId)
+    .select("followee_id");
+
+  if (error) {
+    console.error("Failed to unfollow:", error);
+    return { error: "フォロー解除に失敗しました" };
+  }
+
+  revalidatePath("/shared");
+  revalidatePath("/shelf");
+
+  if (!data || data.length === 0) {
+    return { error: "フォロー関係が見つかりませんでした（既に解除済みです）" };
+  }
+  return { success: true };
+}
+
+/**
+ * フォロワーから外す（自分がフォローされている側の行を削除）
+ */
+export async function removeFollower(
+  followerUserId: string
+): Promise<ActionResult> {
+  if (!isUuid(followerUserId)) return { error: "ユーザーIDが不正です" };
+
+  const supabase = await createClient();
+  const userId = await getCurrentUserId(supabase);
+  if (!userId) return { error: "認証が必要です" };
+
+  const { data, error } = await supabase
+    .from("follows")
+    .delete()
+    .eq("follower_id", followerUserId)
+    .eq("followee_id", userId)
+    .select("follower_id");
+
+  if (error) {
+    console.error("Failed to remove follower:", error);
+    return { error: "フォロワーの解除に失敗しました" };
+  }
+
+  revalidatePath("/shared");
+  revalidatePath("/shelf");
+
+  if (!data || data.length === 0) {
+    return { error: "フォロワーが見つかりませんでした（既に解除済みです）" };
+  }
+  return { success: true };
+}
+
+// ─────────────────────────────────────────────────────────────────
+// 招待リンク経由のフォロー
+// ─────────────────────────────────────────────────────────────────
+
+export type InviteStatus =
+  | "ok"
+  | "already_following"
+  | "self"
+  | "not_found"
+  | "auth_required"
+  | "error";
+
+export type InvitePeek = {
+  status: InviteStatus;
+  followeeId: string | null;
+  displayName: string | null;
+};
+
+/** RPCが返すjsonbを型付きの形に整える */
+function parseInviteRpc(value: unknown): InvitePeek {
+  if (typeof value !== "object" || value === null) {
+    return { status: "error", followeeId: null, displayName: null };
+  }
+
+  const record = value as Record<string, unknown>;
+  const rawStatus = record.status;
+  const allowed: InviteStatus[] = [
+    "ok",
+    "already_following",
+    "self",
+    "not_found",
+    "auth_required",
+  ];
+  const status = allowed.find((s) => s === rawStatus) ?? "error";
+
+  return {
+    status,
+    followeeId:
+      typeof record.followee_id === "string" ? record.followee_id : null,
+    displayName:
+      typeof record.display_name === "string" ? record.display_name : null,
+  };
+}
+
+/**
+ * 招待コードの内容を確認する（レコードは一切変更しない）
+ */
+export async function peekInvite(code: string): Promise<InvitePeek> {
+  if (!INVITE_CODE_PATTERN.test(code)) {
+    return { status: "not_found", followeeId: null, displayName: null };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("peek_invite", {
+    invite_code: code,
+  });
+
+  if (error) {
+    console.error("Failed to peek invite:", error);
+    return { status: "error", followeeId: null, displayName: null };
+  }
+
+  return parseInviteRpc(data);
+}
+
+export type FollowViaInviteResult =
+  | { success: true; displayName: string | null }
+  | { error: string };
+
+/**
+ * 招待リンク経由でフォローする。
+ * RLSでは直接insertできないため、必ず follow_via_invite RPC を使う。
+ */
+export async function followViaInvite(
+  code: string
+): Promise<FollowViaInviteResult> {
+  if (!INVITE_CODE_PATTERN.test(code)) {
+    return { error: "招待リンクが無効です" };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("follow_via_invite", {
+    invite_code: code,
+  });
+
+  if (error) {
+    console.error("Failed to follow via invite:", error);
+    return { error: "フォローに失敗しました" };
+  }
+
+  const result = parseInviteRpc(data);
+
+  switch (result.status) {
+    case "ok":
+    case "already_following":
+      revalidatePath("/shared");
+      revalidatePath("/shelf");
+      return { success: true, displayName: result.displayName };
+    case "self":
+      return { error: "自分自身の招待リンクです" };
+    case "not_found":
+      return {
+        error: "招待リンクが無効です（再発行された可能性があります）",
+      };
+    case "auth_required":
+      return { error: "認証が必要です" };
+    default:
+      return { error: "フォローに失敗しました" };
+  }
 }

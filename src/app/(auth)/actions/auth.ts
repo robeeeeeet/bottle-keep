@@ -16,7 +16,8 @@ type AuthActionResult = {
 };
 
 // 許可されたリダイレクト先のパスプレフィックス
-const ALLOWED_REDIRECT_PREFIXES = ["/shelf", "/shared", "/add"];
+// /invite は招待リンクを未ログインで開いた場合に、ログイン後に戻すために必要
+const ALLOWED_REDIRECT_PREFIXES = ["/shelf", "/shared", "/add", "/likes", "/invite"];
 
 // 入力値の制限（Supabaseの設定に合わせる）
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

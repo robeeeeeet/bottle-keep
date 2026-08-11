@@ -58,8 +58,28 @@ const navItems = [
     ),
   },
   {
+    href: "/likes",
+    label: "いいね",
+    // 心（いいね）のアイコン
+    icon: (
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="w-6 h-6"
+        aria-hidden="true"
+      >
+        <path d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C6.1 3.75 4 5.765 4 8.25c0 7.22 8 11.25 8 11.25s8-4.03 8-11.25z" />
+      </svg>
+    ),
+  },
+  {
     href: "/shared",
-    label: "共有",
+    label: "フォロー",
     // 人と人をつなぐアイコン
     icon: (
       <svg

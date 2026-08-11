@@ -138,7 +138,7 @@ export function ShelfFilter() {
   return (
     <div
       ref={containerRef}
-      className="sticky top-[73px] z-30 bg-background/95 backdrop-blur-sm border-b border-border-light px-4 py-2 overflow-visible"
+      className="border-b border-border-light px-4 py-2 overflow-visible"
     >
       <div className="flex flex-wrap items-center gap-2 overflow-visible scrollbar-hide">
         {/* ソートドロップダウン */}

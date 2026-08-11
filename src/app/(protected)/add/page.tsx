@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef, lazy, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useState, lazy, Suspense } from "react";
+import { useRouter } from "next/navigation";
 import { analyzeAlcohol, type AlcoholInfo } from "@/lib/gemini/analyze";
-import { saveCollection, getAlcoholById } from "./actions";
+import { saveCollection } from "./actions";
 import type { ReviewData } from "@/components/add/review-form";
 import { HeaderActions } from "@/components/layout/header-actions";
 
@@ -62,8 +62,6 @@ type ReviewCameFrom = "confirm" | "candidates";
 
 export default function AddPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const existingAlcoholId = searchParams.get("alcoholId");
 
   const [step, setStep] = useState<Step>("select");
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
@@ -71,7 +69,6 @@ export default function AddPage() {
   const [candidates, setCandidates] = useState<AlcoholInfo[]>([]);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [isLoadingAlcohol, setIsLoadingAlcohol] = useState(false);
   // 元の検索クエリを保持（代替候補取得時に使用）
   const [originalQuery, setOriginalQuery] = useState<OriginalQuery | null>(
     null
@@ -82,32 +79,6 @@ export default function AddPage() {
   // レビュー画面の遷移元（戻る操作の行き先）
   const [reviewCameFrom, setReviewCameFrom] =
     useState<ReviewCameFrom>("confirm");
-  // 既存のお酒情報の取得を一度だけ試行するためのフラグ
-  const hasAttemptedRef = useRef(false);
-
-  // 既存のお酒に対するレビュー追加の場合、お酒情報を取得して直接レビュー画面へ
-  useEffect(() => {
-    if (!existingAlcoholId || hasAttemptedRef.current) return;
-
-    hasAttemptedRef.current = true;
-    setIsLoadingAlcohol(true);
-    getAlcoholById(existingAlcoholId)
-      .then((info) => {
-        if (info) {
-          setAlcoholInfo(info);
-          setStep("review");
-        } else {
-          setAnalyzeError("お酒情報の取得に失敗しました");
-        }
-      })
-      .catch((err) => {
-        console.error("Failed to load alcohol:", err);
-        setAnalyzeError("お酒情報の取得に失敗しました");
-      })
-      .finally(() => {
-        setIsLoadingAlcohol(false);
-      });
-  }, [existingAlcoholId]);
 
   // 写真アップロード完了時 → Geminiで分析
   const handlePhotoUploaded = async (url: string, base64: string) => {
@@ -228,7 +199,6 @@ export default function AddPage() {
     try {
       const result = await saveCollection({
         alcoholInfo: data.alcoholInfo,
-        existingAlcoholId: existingAlcoholId, // フレンドのお酒にレビュー追加時のID
         photoUrl: data.photoUrl,
         drinkingDate: data.drinkingDate,
         rating: data.rating,
@@ -267,11 +237,6 @@ export default function AddPage() {
       setCandidates([]);
       setAlcoholInfo(null);
     } else if (step === "review") {
-      // 既存のお酒への追加の場合は棚に戻る
-      if (existingAlcoholId) {
-        router.push("/shelf");
-        return;
-      }
       // レビュー画面から戻る → 遷移元の画面に戻る
       setStep(reviewCameFrom);
     }
@@ -279,11 +244,6 @@ export default function AddPage() {
 
   // ステップに応じたヘッダータイトル
   const getHeaderTitle = () => {
-    // 既存のお酒への追加の場合
-    if (existingAlcoholId) {
-      if (isLoadingAlcohol) return "読み込み中";
-      return "自分の記録を追加";
-    }
     switch (step) {
       case "select":
         return "お酒を追加";
@@ -359,22 +319,8 @@ export default function AddPage() {
           </div>
         )}
 
-        {/* 既存のお酒読み込み中 */}
-        {isLoadingAlcohol && (
-          <div className="flex flex-col items-center justify-center py-20 animate-in fade-in">
-            <div className="relative w-24 h-24 mb-6">
-              <div className="absolute inset-0 border-2 border-primary/20 rounded-full" />
-              <div className="absolute inset-0 border-2 border-transparent border-t-primary rounded-full animate-spin" />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-3xl animate-float">🍶</span>
-              </div>
-            </div>
-            <p className="text-foreground font-medium mb-2">お酒情報を読み込み中...</p>
-          </div>
-        )}
-
         {/* 選択画面 */}
-        {step === "select" && !isLoadingAlcohol && (
+        {step === "select" && (
           <div className="space-y-6 animate-in fade-in">
             {/* イントロテキスト */}
             <div className="text-center py-4">
@@ -593,7 +539,7 @@ export default function AddPage() {
               photoUrl={photoUrl}
               onSave={handleSave}
               isLoading={isSaving}
-              submitLabel={existingAlcoholId ? "自分の記録を追加" : "棚に追加する"}
+              submitLabel="棚に追加する"
             />
           </Suspense>
         )}

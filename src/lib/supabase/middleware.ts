@@ -61,7 +61,10 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/shelf") ||
     pathname.startsWith("/add") ||
     pathname.startsWith("/shared") ||
+    pathname.startsWith("/likes") ||
     pathname.startsWith("/admin");
+  // /invite は未ログインでも到達させ、ページ側で redirect 付きログインへ送る
+  // （招待リンクを開いた人がログイン後に招待画面へ戻れるようにするため）
 
   if (!user && isProtectedRoute) {
     return redirectTo("/login");

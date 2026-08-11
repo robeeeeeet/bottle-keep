@@ -4,58 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import type { AlcoholInfo } from "@/lib/gemini/analyze";
 
-/**
- * 既存のお酒情報をIDで取得
- * （フレンドのお酒に「自分も評価する」ときに使用）
- */
-export async function getAlcoholById(
-  alcoholId: string
-): Promise<AlcoholInfo | null> {
-  const supabase = await createClient();
-
-  const { data, error } = await supabase
-    .from("alcohols")
-    .select(
-      `
-      id,
-      name,
-      type,
-      subtype,
-      brand,
-      producer,
-      origin_country,
-      origin_region,
-      alcohol_percentage,
-      price_range,
-      characteristics
-    `
-    )
-    .eq("id", alcoholId)
-    .single();
-
-  if (error || !data) {
-    console.error("Failed to get alcohol:", error);
-    return null;
-  }
-
-  // AlcoholInfo形式に変換
-  return {
-    name: data.name,
-    type: data.type,
-    subtype: data.subtype || undefined,
-    brand: data.brand || undefined,
-    producer: data.producer || undefined,
-    origin_country: data.origin_country || undefined,
-    origin_region: data.origin_region || undefined,
-    alcohol_percentage: data.alcohol_percentage || undefined,
-    price_range: data.price_range || undefined,
-    characteristics: data.characteristics || undefined,
-  };
-}
-
 type SaveCollectionParams = {
   alcoholInfo: AlcoholInfo;
-  existingAlcoholId?: string | null; // 既存のお酒に追加する場合のID（フレンドのお酒にレビュー追加時）
   photoUrl?: string | null;
   drinkingDate: string;
   rating: number;
@@ -160,19 +110,15 @@ export async function saveCollection(
     return { error: validationError };
   }
 
-  const { alcoholInfo, existingAlcoholId, photoUrl, drinkingDate, rating, memo } = params;
+  const { alcoholInfo, photoUrl, drinkingDate, rating, memo } = params;
   const name = alcoholInfo.name.trim();
   const type = alcoholInfo.type.trim();
   const trimmedMemo = memo?.trim() || null;
 
   let alcoholId: string;
 
-  // 既存のお酒にレビューを追加する場合はそのIDを使用
-  if (existingAlcoholId) {
-    console.log("Adding review to existing alcohol ID:", existingAlcoholId);
-    alcoholId = existingAlcoholId;
-  } else {
-    // 新規のお酒を登録
+  {
+    // お酒マスターに登録
     const { data: alcohol, error: alcoholError } = await supabase
       .from("alcohols")
       .insert({

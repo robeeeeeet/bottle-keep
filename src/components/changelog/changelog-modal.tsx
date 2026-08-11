@@ -3,23 +3,31 @@
 import { useState, useEffect, useId } from "react";
 
 // 現在のバージョン（更新時にここを変更）
-const CURRENT_VERSION = "2026.04.05";
+const CURRENT_VERSION = "2026.08.11";
 
 // 更新履歴の内容
 const CHANGELOG = {
   version: CURRENT_VERSION,
-  date: "2026年4月5日",
-  title: "新機能のお知らせ",
+  date: "2026年8月11日",
+  title: "共有機能が新しくなりました",
   updates: [
     {
-      icon: "📷",
-      title: "写真撮影の改善",
-      description: "Androidでも「写真を撮る」と「ライブラリから選ぶ」を選択できるようになりました",
+      icon: "🔗",
+      title: "フォローで見られるように",
+      description:
+        "招待リンクやQRコードでフォローすると、その人の投稿が「フォロー中」タブに並びます。フォローされた側はワンタップでフォロー返しできます",
     },
     {
-      icon: "🔄",
-      title: "並び順の切り替え",
-      description: "棚の表示を昇順/降順で切り替えられるようになりました",
+      icon: "❤️",
+      title: "いいねとメモ",
+      description:
+        "気になる投稿にいいねすると「いいね」タブに集まります。自分だけに見えるメモも残せます",
+    },
+    {
+      icon: "📊",
+      title: "自分の投稿のいいね数",
+      description:
+        "「自分」タブで、それぞれの投稿がどれだけいいねされたか分かるようになりました",
     },
   ],
 };
