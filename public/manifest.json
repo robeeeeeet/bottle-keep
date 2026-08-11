@@ -6,12 +6,17 @@
   "start_url": "/shelf",
   "scope": "/",
   "display": "standalone",
-  "display_override": ["standalone"],
+  "display_override": [
+    "standalone"
+  ],
   "lang": "ja",
   "dir": "ltr",
-  "categories": ["lifestyle", "food"],
-  "background_color": "#2a1810",
-  "theme_color": "#2a1810",
+  "categories": [
+    "lifestyle",
+    "food"
+  ],
+  "background_color": "#faf8f5",
+  "theme_color": "#faf8f5",
   "orientation": "portrait",
   "icons": [
     {

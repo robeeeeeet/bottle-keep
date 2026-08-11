@@ -12,7 +12,8 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "gen:types": "npx supabase gen types typescript --project-id ceygoqxqwpcitjswwvlq > src/types/database.types.ts",
-    "icons": "node scripts/generate-icons.mjs"
+    "icons": "node scripts/generate-icons.mjs",
+    "splash": "node scripts/generate-splash.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.8.0",

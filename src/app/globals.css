@@ -58,6 +58,7 @@
   --z-nav: 50;         /* bottom-nav（画面下部の常設ナビ） */
   --z-overlay: 60;      /* ドロップダウン等の一時的なオーバーレイ */
   --z-modal: 100;      /* changelog-modal・navigation-progress等、最前面に出すべき要素 */
+  --z-launch: 200;     /* 起動スプラッシュ（PWA起動直後の一瞬だけ最前面） */
 }
 
 /* ダークモード（classベース - next-themes用） */
@@ -606,4 +607,177 @@ select {
   background-repeat: no-repeat;
   background-position: center;
   opacity: 0.5;
+}
+
+/* ==========================================================================
+   起動スプラッシュ（PWA standalone起動時のみ）
+
+   iOSはPWA起動時にapple-touch-startup-imageの静止画を表示する。
+   その静止画（public/splash/）と同じ地色・同じロゴ配置から始めて
+   アニメーションで開くことで、起動シーケンス全体で色が飛ばないようにする。
+
+   - CSSのみで完結（ハイドレーション前の初回描画から動く / JS不要）
+   - 表示条件は html[data-standalone="true"]（layout.tsxのインラインscriptが付与）
+   - 静止画とレイアウトを一致させること（scripts/generate-splash.mjs のLAYOUT）
+   ========================================================================== */
+
+.launch-splash {
+  display: none;
+}
+
+html[data-standalone="true"] .launch-splash {
+  display: flex;
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-launch);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(
+    180deg,
+    var(--background) 0%,
+    var(--background-warm) 100%
+  );
+  /* 520ms待ってから280msでフェードアウト（合計800ms） */
+  animation: launch-splash-out 280ms ease-in 520ms forwards;
+}
+
+/* 印鑑風の座（静止画と同じ 88px / radius 18px） */
+.launch-splash__seal {
+  position: relative;
+  overflow: hidden;
+  width: 88px;
+  height: 88px;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  background: color-mix(in oklab, var(--primary) 10%, transparent);
+  border: 1.5px solid color-mix(in oklab, var(--primary) 22%, transparent);
+  color: var(--primary);
+  font-family: var(--font-noto-serif-jp), serif;
+  font-size: 44px;
+  font-weight: 700;
+  line-height: 1;
+  animation: launch-seal-in 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/* 金色の光沢が一度だけ横切る */
+.launch-splash__seal::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    115deg,
+    transparent 35%,
+    color-mix(in oklab, var(--gold) 55%, transparent) 50%,
+    transparent 65%
+  );
+  animation: launch-sheen 600ms ease-out 300ms both;
+}
+
+.launch-splash__title {
+  margin-top: 24px;
+  font-family: var(--font-noto-serif-jp), serif;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--primary);
+  animation: launch-rise 380ms ease-out 150ms both;
+}
+
+/* 金の罫と菱形 */
+.launch-splash__rule {
+  margin-top: 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  animation: launch-rule-in 340ms ease-out 260ms both;
+}
+
+.launch-splash__rule span:first-child,
+.launch-splash__rule span:last-child {
+  display: block;
+  width: 34px;
+  height: 1px;
+  background: color-mix(in oklab, var(--gold) 50%, transparent);
+}
+
+.launch-splash__rule span:nth-child(2) {
+  display: block;
+  width: 5px;
+  height: 5px;
+  rotate: 45deg;
+  background: color-mix(in oklab, var(--gold) 85%, transparent);
+}
+
+@keyframes launch-splash-out {
+  from {
+    opacity: 1;
+    visibility: visible;
+  }
+  to {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+@keyframes launch-seal-in {
+  from {
+    opacity: 0;
+    transform: scale(1.12) rotate(-3deg);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+@keyframes launch-sheen {
+  from {
+    transform: translateX(-120%);
+    opacity: 0;
+  }
+  40% {
+    opacity: 1;
+  }
+  to {
+    transform: translateX(120%);
+    opacity: 0;
+  }
+}
+
+@keyframes launch-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes launch-rule-in {
+  from {
+    opacity: 0;
+    transform: scaleX(0.3);
+  }
+  to {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+/* 動きを減らす設定では、静止画からの素早いフェードのみにする */
+@media (prefers-reduced-motion: reduce) {
+  html[data-standalone="true"] .launch-splash {
+    animation: launch-splash-out 200ms linear 300ms forwards;
+  }
+
+  .launch-splash__seal,
+  .launch-splash__seal::after,
+  .launch-splash__title,
+  .launch-splash__rule {
+    animation: none;
+  }
 }
