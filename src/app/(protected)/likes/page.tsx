@@ -4,6 +4,13 @@ import { createClient } from "@/lib/supabase/server";
 import { HeaderActions } from "@/components/layout/header-actions";
 import type { PostCardData } from "@/types/db";
 import { LikedPost } from "./_components/liked-post";
+import { LikesSort } from "./_components/likes-sort";
+import { parseLikesSortField } from "./sort";
+
+type SearchParams = {
+  sort?: string;
+  order?: string;
+};
 
 /**
  * いいね一覧（ブックマーク）。
@@ -12,8 +19,15 @@ import { LikedPost } from "./_components/liked-post";
  * 「現在フォローしているか」で判断する。そのためフォローを解除した相手の
  * 投稿は本文が取得できない（= unavailable）。その場合も自分のメモは表示する。
  */
-export default async function LikesPage() {
+export default async function LikesPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
   const supabase = await createClient();
+  const params = await searchParams;
+  const sortField = parseLikesSortField(params.sort);
+  const ascending = params.order === "asc";
 
   const { data: claimsData } = await supabase.auth.getClaims();
   const currentUserId = claimsData?.claims.sub;
@@ -54,7 +68,10 @@ export default async function LikesPage() {
     `
     )
     .eq("user_id", currentUserId)
-    .order("created_at", { ascending: false });
+    // 既定は「いいねした日」の新しい順。投稿日での並び替えは取得後にJSで行う
+    // （埋め込みリソースでの並び替えは alcohols!inner が必要になり、
+    //   フォロー解除済みの投稿が一覧から消えてしまうため）
+    .order("created_at", { ascending: sortField === "liked" ? ascending : false });
 
   // 取得失敗を空状態と誤認させない
   if (error) {
@@ -122,8 +139,20 @@ export default async function LikesPage() {
           myNote: row.note,
         };
 
-    return { post, unavailable: row.entry === null };
+    return { post, unavailable: row.entry === null, likedAt: row.created_at };
   });
+
+  // 投稿日での並び替えはここで行う（DB側では埋め込みの並び替えができないため）。
+  // 本文が取得できない投稿（フォロー解除済み）は投稿日が分からないので末尾に置く。
+  if (sortField === "posted") {
+    items.sort((a, b) => {
+      if (a.unavailable !== b.unavailable) return a.unavailable ? 1 : -1;
+      const diff =
+        new Date(a.post.created_at).getTime() -
+        new Date(b.post.created_at).getTime();
+      return ascending ? diff : -diff;
+    });
+  }
 
   return (
     <div className="min-h-screen relative">
@@ -153,6 +182,13 @@ export default async function LikesPage() {
           <HeaderActions />
         </div>
       </header>
+
+      {/* 並び替え（1件以上あるときだけ出す） */}
+      {items.length > 0 && (
+        <div className="sticky top-[73px] z-30 bg-background/95 backdrop-blur-sm">
+          <LikesSort activeField={sortField} ascending={ascending} />
+        </div>
+      )}
 
       <main className="px-4 pt-4 pb-24">
         {items.length > 0 ? (
