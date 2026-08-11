@@ -132,13 +132,23 @@ export default async function ShelfPage({
   query = query.order(sortField, { ascending, nullsFirst: false });
 
   // フォロー中タブでは、どの投稿に自分がいいね済みかも必要になる
-  const [entriesResult, profileResult, likesResult] = await Promise.all([
-    query,
-    supabase.from("profiles").select("is_admin").eq("id", currentUserId).single(),
-    tab === "following"
-      ? supabase.from("post_likes").select("entry_id").eq("user_id", currentUserId)
-      : Promise.resolve({ data: [], error: null }),
-  ]);
+  const [entriesResult, profileResult, likesResult, unreadResult] =
+    await Promise.all([
+      query,
+      supabase
+        .from("profiles")
+        .select("is_admin")
+        .eq("id", currentUserId)
+        .single(),
+      tab === "following"
+        ? supabase
+            .from("post_likes")
+            .select("entry_id")
+            .eq("user_id", currentUserId)
+        : Promise.resolve({ data: [], error: null }),
+      // 自分の投稿への未読いいね件数（ベルのバッジ用）
+      supabase.rpc("count_unread_likes"),
+    ]);
 
   // 取得に失敗した場合は空状態と誤認させず、error.tsxに拾わせる
   if (entriesResult.error) {
@@ -146,6 +156,7 @@ export default async function ShelfPage({
   }
 
   const isAdmin = profileResult.data?.is_admin || false;
+  const unreadLikes = unreadResult.data ?? 0;
   const rows = (entriesResult.data ?? []) as unknown as EntryRow[];
   const likedEntryIds = new Set(
     (likesResult.data ?? []).map((like) => like.entry_id)
@@ -221,6 +232,40 @@ export default async function ShelfPage({
                 </svg>
               </Link>
             )}
+            {/* お知らせ（自分の投稿へのいいね） */}
+            <Link
+              href="/notifications"
+              className="relative flex items-center text-muted-foreground hover:text-foreground transition-colors px-2 py-2 rounded-lg hover:bg-muted"
+              aria-label={
+                unreadLikes > 0
+                  ? `お知らせ（未読${unreadLikes}件）`
+                  : "お知らせ"
+              }
+              title="お知らせ"
+            >
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0"
+                />
+              </svg>
+              {unreadLikes > 0 && (
+                <span
+                  className="absolute top-1 right-1 min-w-[16px] h-4 px-1 rounded-full bg-vermilion text-[10px] font-bold text-white flex items-center justify-center tabular-nums"
+                  aria-hidden="true"
+                >
+                  {unreadLikes > 9 ? "9+" : unreadLikes}
+                </span>
+              )}
+            </Link>
             <HeaderActions />
             <LogoutButton />
           </div>

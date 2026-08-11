@@ -255,6 +255,7 @@ export type Database = {
           display_name: string | null
           id: string
           is_admin: boolean
+          likes_seen_at: string | null
           updated_at: string
         }
         Insert: {
@@ -263,6 +264,7 @@ export type Database = {
           display_name?: string | null
           id: string
           is_admin?: boolean
+          likes_seen_at?: string | null
           updated_at?: string
         }
         Update: {
@@ -271,54 +273,10 @@ export type Database = {
           display_name?: string | null
           id?: string
           is_admin?: boolean
+          likes_seen_at?: string | null
           updated_at?: string
         }
         Relationships: []
-      }
-      shelf_shares: {
-        Row: {
-          accepted_at: string | null
-          created_at: string
-          id: string
-          invite_code: string | null
-          owner_id: string
-          shared_with_id: string | null
-          status: string
-        }
-        Insert: {
-          accepted_at?: string | null
-          created_at?: string
-          id?: string
-          invite_code?: string | null
-          owner_id: string
-          shared_with_id?: string | null
-          status?: string
-        }
-        Update: {
-          accepted_at?: string | null
-          created_at?: string
-          id?: string
-          invite_code?: string | null
-          owner_id?: string
-          shared_with_id?: string | null
-          status?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "shelf_shares_owner_profiles_fkey"
-            columns: ["owner_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "shelf_shares_shared_with_profiles_fkey"
-            columns: ["shared_with_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
       }
     }
     Views: {
@@ -326,6 +284,7 @@ export type Database = {
     }
     Functions: {
       can_like_entry: { Args: { target_entry_id: string }; Returns: boolean }
+      count_unread_likes: { Args: never; Returns: number }
       follow_via_invite: { Args: { invite_code: string }; Returns: Json }
       follows_me: { Args: { target_user_id: string }; Returns: boolean }
       get_all_collection_entries_admin: {
@@ -352,6 +311,20 @@ export type Database = {
           display_name: string
           id: string
           is_admin: boolean
+        }[]
+      }
+      get_like_notifications: {
+        Args: { max_rows?: number }
+        Returns: {
+          alcohol_name: string
+          alcohol_type: string
+          entry_id: string
+          entry_photo_url: string
+          is_unread: boolean
+          liked_at: string
+          liker_avatar_url: string
+          liker_id: string
+          liker_name: string
         }[]
       }
       get_user_collection_entries_admin: {
