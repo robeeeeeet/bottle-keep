@@ -1,6 +1,15 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { usePathname } from "next/navigation";
+
+// 入力・操作主体のページではバナーを出さない（下部の保存/削除ボタンを覆うため）
+function isSuppressedPath(pathname: string): boolean {
+  return (
+    pathname.startsWith("/add") ||
+    (pathname.startsWith("/shelf/") && pathname.endsWith("/edit"))
+  );
+}
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -28,6 +37,8 @@ export function InstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] =
     useState<BeforeInstallPromptEvent | null>(null);
   const [showPrompt, setShowPrompt] = useState(false);
+
+  const pathname = usePathname();
 
   // 初期値はクライアントサイドで計算
   const isStandalone = useMemo(() => getIsStandalone(), []);
@@ -106,7 +117,7 @@ export function InstallPrompt() {
   }, []);
 
   // 表示しない条件
-  if (!showPrompt || isStandalone) return null;
+  if (!showPrompt || isStandalone || isSuppressedPath(pathname)) return null;
 
   return (
     <div className="fixed bottom-24 left-4 right-4 z-40 pointer-events-none animate-in slide-in-from-bottom-4 fade-in duration-300">
