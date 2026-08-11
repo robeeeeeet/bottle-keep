@@ -1,0 +1,7 @@
+# Supabase プロジェクト設定（CLI / Edge Function 用）
+project_id = "ceygoqxqwpcitjswwvlq"
+
+# Edge Function: お酒情報の解析（Gemini）
+# プラットフォーム側でJWTを検証（関数内でも getUser で再検証している）
+[functions.analyze-alcohol]
+verify_jwt = true

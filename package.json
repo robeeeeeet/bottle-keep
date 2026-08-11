@@ -11,7 +11,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "gen:types": "supabase gen types typescript --project-id ceygoqxqwpcitjswwvlq > src/types/database.types.ts",
+    "gen:types": "npx supabase gen types typescript --project-id ceygoqxqwpcitjswwvlq > src/types/database.types.ts",
     "icons": "node scripts/generate-icons.mjs"
   },
   "dependencies": {

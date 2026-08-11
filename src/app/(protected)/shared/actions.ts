@@ -93,7 +93,7 @@ async function createInviteWithRetry(
       .select("invite_code")
       .single();
 
-    if (!error && data) {
+    if (!error && data?.invite_code) {
       revalidatePath("/shared");
       return { code: data.invite_code };
     }
