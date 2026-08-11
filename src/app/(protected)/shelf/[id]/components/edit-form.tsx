@@ -7,7 +7,7 @@ import { compressAndConvertToBase64 } from "@/lib/image/compressor";
 import { updateCollection, deleteCollection } from "../edit/actions";
 import { DeleteModal } from "./delete-modal";
 import { Spinner } from "@/components/ui/spinner";
-import type { CollectionEntryWithAlcohol } from "@/types/database.types";
+import type { CollectionEntryWithAlcohol } from "@/types/db";
 
 type Props = {
   entry: CollectionEntryWithAlcohol;

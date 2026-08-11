@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { EditForm } from "../components/edit-form";
-import type { CollectionEntryWithAlcohol } from "@/types/database.types";
+import type { CollectionEntryWithAlcohol } from "@/types/db";
 
 type Props = {
   params: Promise<{ id: string }>;

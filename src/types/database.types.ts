@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.1"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       alcohols: {
@@ -71,6 +96,7 @@ export type Database = {
           created_at: string
           drinking_date: string | null
           id: string
+          like_count: number
           memo: string | null
           photo_url: string | null
           rating: number | null
@@ -82,6 +108,7 @@ export type Database = {
           created_at?: string
           drinking_date?: string | null
           id?: string
+          like_count?: number
           memo?: string | null
           photo_url?: string | null
           rating?: number | null
@@ -93,6 +120,7 @@ export type Database = {
           created_at?: string
           drinking_date?: string | null
           id?: string
+          like_count?: number
           memo?: string | null
           photo_url?: string | null
           rating?: number | null
@@ -109,6 +137,110 @@ export type Database = {
           },
           {
             foreignKeyName: "collection_entries_profiles_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      follows: {
+        Row: {
+          created_at: string
+          followee_id: string
+          follower_id: string
+        }
+        Insert: {
+          created_at?: string
+          followee_id: string
+          follower_id: string
+        }
+        Update: {
+          created_at?: string
+          followee_id?: string
+          follower_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "follows_followee_id_fkey"
+            columns: ["followee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "follows_follower_id_fkey"
+            columns: ["follower_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invite_links: {
+        Row: {
+          code: string
+          created_at: string
+          id: string
+          revoked_at: string | null
+          user_id: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: string
+          revoked_at?: string | null
+          user_id: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: string
+          revoked_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invite_links_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      post_likes: {
+        Row: {
+          created_at: string
+          entry_id: string
+          note: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          entry_id: string
+          note?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          entry_id?: string
+          note?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_likes_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "collection_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_likes_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
@@ -193,6 +325,9 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_like_entry: { Args: { target_entry_id: string }; Returns: boolean }
+      follow_via_invite: { Args: { invite_code: string }; Returns: Json }
+      follows_me: { Args: { target_user_id: string }; Returns: boolean }
       get_all_collection_entries_admin: {
         Args: never
         Returns: {
@@ -242,6 +377,7 @@ export type Database = {
         }[]
       }
       is_admin: { Args: never; Returns: boolean }
+      peek_invite: { Args: { invite_code: string }; Returns: Json }
     }
     Enums: {
       [_ in never]: never
@@ -370,34 +506,10 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {},
   },
 } as const
-
-// ---- アプリ用の便利エイリアス ----
-export type Alcohols = Tables<"alcohols">
-export type CollectionEntries = Tables<"collection_entries">
-export type Profiles = Tables<"profiles">
-export type ShelfShares = Tables<"shelf_shares">
-
-// 編集ページで使用する型（SELECTで取得するフィールドのみ）
-export type CollectionEntryWithAlcohol = {
-  id: string
-  photo_url: string | null
-  drinking_date: string | null
-  rating: number | null
-  memo: string | null
-  alcohols: {
-    id: string
-    name: string
-    type: string
-    subtype: string | null
-    brand: string | null
-    producer: string | null
-    origin_country: string | null
-    origin_region: string | null
-    alcohol_percentage: number | null
-    characteristics: string[] | null
-  } | null
-}
