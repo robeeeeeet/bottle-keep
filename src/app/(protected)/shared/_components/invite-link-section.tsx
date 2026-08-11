@@ -1,7 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { createInviteLink, regenerateInviteLink } from "../actions";
+
+// コピー完了の表示を戻すまでの時間
+const COPIED_RESET_MS = 2200;
 
 type Props = {
   /** 自分の有効な招待コード（未作成ならnull） */
@@ -27,6 +30,26 @@ export function InviteLinkSection({
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // コピー直後だけボタンの見た目を変えて、確かにコピーできたことを伝える
+  const [justCopied, setJustCopied] = useState(false);
+  const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 表示を戻すタイマーは離脱時に片付ける
+  useEffect(() => {
+    return () => {
+      if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+    };
+  }, []);
+
+  const markCopied = () => {
+    setNotice("リンクをコピーしました");
+    setJustCopied(true);
+    if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+    copiedTimerRef.current = setTimeout(() => {
+      setJustCopied(false);
+      setNotice(null);
+    }, COPIED_RESET_MS);
+  };
 
   const runAction = (
     action: PendingAction,
@@ -67,7 +90,7 @@ export function InviteLinkSection({
     setError(null);
     try {
       await navigator.clipboard.writeText(inviteUrl);
-      setNotice("リンクをコピーしました");
+      markCopied();
       return;
     } catch {
       // Clipboard API非対応時のフォールバック（非推奨メソッド使用）
@@ -85,7 +108,7 @@ export function InviteLinkSection({
       textArea.select();
       document.execCommand("copy");
       document.body.removeChild(textArea);
-      setNotice("リンクをコピーしました");
+      markCopied();
     } catch (fallbackError) {
       console.error("Copy failed:", fallbackError);
       setError("コピーに失敗しました");
@@ -132,9 +155,37 @@ export function InviteLinkSection({
         </div>
       )}
 
+      {/* 読み上げ用（内容は下のトーストと同じ） */}
       <p aria-live="polite" className="sr-only">
         {notice ?? ""}
       </p>
+
+      {/*
+        コピー完了のトースト。ボタンの文字が変わるだけでは気づきにくいため出す。
+        画面下部はナビ・インストールバナー・オフライン表示で混雑しているため、
+        重なりを避けて上部（セーフエリアの下）に表示する。
+      */}
+      {notice && (
+        <div className="fixed left-4 right-4 top-[calc(env(safe-area-inset-top)+0.75rem)] z-50 flex justify-center pointer-events-none">
+          <p className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-primary text-primary-foreground text-sm font-medium shadow-lg animate-in fade-in slide-in-from-top-4">
+            <svg
+              className="w-4 h-4 text-gold"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2.5}
+              aria-hidden="true"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M5 13l4 4L19 7"
+              />
+            </svg>
+            {notice}
+          </p>
+        </div>
+      )}
 
       {siteUrlMissing && (
         <div
@@ -183,10 +234,40 @@ export function InviteLinkSection({
               type="button"
               onClick={handleCopy}
               disabled={isPending || !inviteUrl}
-              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-3 rounded-xl btn-primary-gradient text-primary-foreground font-semibold text-sm disabled:opacity-50"
+              className={`
+                flex-1 flex items-center justify-center gap-1.5 px-3 py-3 rounded-xl
+                font-semibold text-sm disabled:opacity-50 transition-colors
+                ${
+                  justCopied
+                    ? "bg-gold text-primary-dark"
+                    : "btn-primary-gradient text-primary-foreground"
+                }
+              `}
             >
-              <span aria-hidden="true">📋</span>
-              コピー
+              {justCopied ? (
+                <>
+                  <svg
+                    className="w-4 h-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2.5}
+                    aria-hidden="true"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                  コピーしました
+                </>
+              ) : (
+                <>
+                  <span aria-hidden="true">📋</span>
+                  コピー
+                </>
+              )}
             </button>
             <button
               type="button"
