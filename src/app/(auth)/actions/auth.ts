@@ -135,17 +135,31 @@ function toUserMessage(error: AuthError, fallback: string): string {
 
 /**
  * メール内リンクに使うサイトURLを取得する
- * 本番で未設定の場合はlocalhostへ送らずエラーを返す
+ *
+ * 優先順位:
+ *  1. NEXT_PUBLIC_SITE_URL（明示設定。独自ドメイン運用時はこれを使う）
+ *  2. VERCEL_PROJECT_PRODUCTION_URL（Vercelが注入する本番ドメイン）
+ *  3. 開発環境のみ localhost
+ *
+ * Hostヘッダ等のリクエスト由来の値は攻撃者が差し替えられるため使わない
+ * （リセットリンクの改ざんに繋がる）。
  */
 function getSiteUrl(): Validated {
   const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim();
-
   if (configured) {
     return { value: configured.replace(/\/+$/, "") };
   }
 
+  // Vercel上では環境変数が未設定でも本番ドメインが分かる
+  const vercelProductionUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
+  if (vercelProductionUrl) {
+    return { value: `https://${vercelProductionUrl.replace(/\/+$/, "")}` };
+  }
+
   if (process.env.NODE_ENV === "production") {
-    console.error("[auth] NEXT_PUBLIC_SITE_URL is not configured");
+    console.error(
+      "[auth] NEXT_PUBLIC_SITE_URL / VERCEL_PROJECT_PRODUCTION_URL is not configured"
+    );
     return {
       error:
         "サーバー設定の不備によりメールを送信できませんでした。管理者にお問い合わせください",
