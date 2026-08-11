@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, lazy, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useState, useEffect, useRef, lazy, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { analyzeAlcohol, type AlcoholInfo } from "@/lib/gemini/analyze";
 import { saveCollection, getAlcoholById } from "./actions";
 import type { ReviewData } from "@/components/add/review-form";
@@ -57,7 +57,11 @@ type OriginalQuery =
   | { type: "image"; imageBase64: string }
   | { type: "text"; text: string; alcoholType: string };
 
+// レビュー画面に遷移する直前の画面（戻り先の判定に使用）
+type ReviewCameFrom = "confirm" | "candidates";
+
 export default function AddPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const existingAlcoholId = searchParams.get("alcoholId");
 
@@ -72,22 +76,38 @@ export default function AddPage() {
   const [originalQuery, setOriginalQuery] = useState<OriginalQuery | null>(
     null
   );
+  // 手動入力の内容を保持（分析失敗でmanualに戻っても入力し直しにならないように）
+  const [manualName, setManualName] = useState("");
+  const [manualType, setManualType] = useState("");
+  // レビュー画面の遷移元（戻る操作の行き先）
+  const [reviewCameFrom, setReviewCameFrom] =
+    useState<ReviewCameFrom>("confirm");
+  // 既存のお酒情報の取得を一度だけ試行するためのフラグ
+  const hasAttemptedRef = useRef(false);
 
   // 既存のお酒に対するレビュー追加の場合、お酒情報を取得して直接レビュー画面へ
   useEffect(() => {
-    if (existingAlcoholId && !alcoholInfo && !isLoadingAlcohol) {
-      setIsLoadingAlcohol(true);
-      getAlcoholById(existingAlcoholId).then((info) => {
+    if (!existingAlcoholId || hasAttemptedRef.current) return;
+
+    hasAttemptedRef.current = true;
+    setIsLoadingAlcohol(true);
+    getAlcoholById(existingAlcoholId)
+      .then((info) => {
         if (info) {
           setAlcoholInfo(info);
           setStep("review");
         } else {
           setAnalyzeError("お酒情報の取得に失敗しました");
         }
+      })
+      .catch((err) => {
+        console.error("Failed to load alcohol:", err);
+        setAnalyzeError("お酒情報の取得に失敗しました");
+      })
+      .finally(() => {
         setIsLoadingAlcohol(false);
       });
-    }
-  }, [existingAlcoholId, alcoholInfo, isLoadingAlcohol]);
+  }, [existingAlcoholId]);
 
   // 写真アップロード完了時 → Geminiで分析
   const handlePhotoUploaded = async (url: string, base64: string) => {
@@ -120,6 +140,11 @@ export default function AddPage() {
 
   // 手動入力完了時 → Geminiで詳細情報取得
   const handleManualSubmit = async (name: string, type: string) => {
+    // 入力内容を親で保持（manualに戻ったときに復元するため）
+    setManualName(name);
+    setManualType(type);
+    // 手動入力経路では写真を持たない（前回の写真が混入しないようにする）
+    setPhotoUrl(null);
     setStep("analyzing");
     setAnalyzeError(null);
     setOriginalQuery({ type: "text", text: name, alcoholType: type });
@@ -147,6 +172,7 @@ export default function AddPage() {
 
   // 確認画面で「合っている」を選択
   const handleConfirm = () => {
+    setReviewCameFrom("confirm");
     setStep("review");
   };
 
@@ -189,10 +215,10 @@ export default function AddPage() {
     }
   };
 
-  // 候補選択時
+  // 候補選択時（候補一覧に戻れるようにcandidatesは保持する）
   const handleCandidateSelect = (selected: AlcoholInfo) => {
     setAlcoholInfo(selected);
-    setCandidates([]);
+    setReviewCameFrom("candidates");
     setStep("review");
   };
 
@@ -200,7 +226,7 @@ export default function AddPage() {
   const handleSave = async (data: ReviewData) => {
     setIsSaving(true);
     try {
-      await saveCollection({
+      const result = await saveCollection({
         alcoholInfo: data.alcoholInfo,
         existingAlcoholId: existingAlcoholId, // フレンドのお酒にレビュー追加時のID
         photoUrl: data.photoUrl,
@@ -208,7 +234,11 @@ export default function AddPage() {
         rating: data.rating,
         memo: data.memo,
       });
-      // redirect()がServer Action内で実行されるので、ここには到達しない
+      // 入力検証エラーの場合はredirectされずにエラーが返る
+      if (result?.error) {
+        throw new Error(result.error);
+      }
+      // 正常時はredirect()がServer Action内で実行されるので、ここには到達しない
     } catch (err) {
       setIsSaving(false);
       throw err;
@@ -221,27 +251,29 @@ export default function AddPage() {
       setStep("select");
       setAnalyzeError(null);
       setOriginalQuery(null);
+      // 選択画面に戻る際は撮影済みの写真を破棄する
+      setPhotoUrl(null);
     } else if (step === "confirm") {
       // 確認画面から戻る → 入力画面に戻る
-      setStep(originalQuery?.type === "image" ? "photo" : "manual");
+      const backStep = originalQuery?.type === "image" ? "photo" : "manual";
+      if (backStep === "manual") setPhotoUrl(null);
+      setStep(backStep);
       setAlcoholInfo(null);
     } else if (step === "candidates") {
       // 候補選択画面から戻る → 入力画面に戻る
-      setStep(originalQuery?.type === "image" ? "photo" : "manual");
+      const backStep = originalQuery?.type === "image" ? "photo" : "manual";
+      if (backStep === "manual") setPhotoUrl(null);
+      setStep(backStep);
       setCandidates([]);
       setAlcoholInfo(null);
     } else if (step === "review") {
       // 既存のお酒への追加の場合は棚に戻る
       if (existingAlcoholId) {
-        window.location.href = "/shelf";
+        router.push("/shelf");
         return;
       }
-      // レビュー画面から戻る → 確認画面に戻る（候補選択経由の場合は候補選択に）
-      if (candidates.length > 0) {
-        setStep("candidates");
-      } else {
-        setStep("confirm");
-      }
+      // レビュー画面から戻る → 遷移元の画面に戻る
+      setStep(reviewCameFrom);
     }
   };
 
@@ -420,7 +452,11 @@ export default function AddPage() {
 
               {/* 手動入力 - セカンダリオプション */}
               <button
-                onClick={() => setStep("manual")}
+                onClick={() => {
+                  // 手動入力は写真を使わないので、残っている写真を破棄する
+                  setPhotoUrl(null);
+                  setStep("manual");
+                }}
                 className="w-full p-5 bg-muted rounded-lg border border-border text-left group transition-all hover:border-primary/30 hover:bg-muted/80 active:scale-[0.98]"
               >
                 <div className="flex items-center gap-4">
@@ -499,7 +535,11 @@ export default function AddPage() {
         {/* 手動入力フォーム */}
         {step === "manual" && (
           <Suspense fallback={<ComponentLoader />}>
-            <AlcoholForm onSubmit={handleManualSubmit} />
+            <AlcoholForm
+              initialName={manualName}
+              initialType={manualType}
+              onSubmit={handleManualSubmit}
+            />
           </Suspense>
         )}
 

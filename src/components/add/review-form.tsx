@@ -30,33 +30,45 @@ function getLocalDateString(): string {
 }
 
 export function ReviewForm({ alcoholInfo, photoUrl, onSave, isLoading, submitLabel = "棚に追加する" }: Props) {
+  const today = getLocalDateString();
   const [drinkingDate, setDrinkingDate] = useState(getLocalDateString);
   const [rating, setRating] = useState(0);
   const [memo, setMemo] = useState("");
   const [error, setError] = useState<string | null>(null);
   const starsContainerRef = useRef<HTMLDivElement>(null);
 
-  // タッチ位置から星の番号を計算
-  const getRatingFromTouch = (clientX: number): number => {
+  // タッチ位置から星の番号を計算（コンテナ外のタッチはnullを返す）
+  const getRatingFromTouch = (
+    clientX: number,
+    clientY: number
+  ): number | null => {
     const container = starsContainerRef.current;
-    if (!container) return 0;
+    if (!container) return null;
 
     const rect = container.getBoundingClientRect();
+    // コンテナの矩形外（スクロール等）では評価を変更しない
+    if (
+      clientX < rect.left ||
+      clientX > rect.right ||
+      clientY < rect.top ||
+      clientY > rect.bottom
+    ) {
+      return null;
+    }
+
     const x = clientX - rect.left;
     const starWidth = rect.width / 5;
     const starNumber = Math.ceil(x / starWidth);
     return Math.max(1, Math.min(5, starNumber));
   };
 
-  const handleTouchStart = (e: React.TouchEvent) => {
+  const handleTouch = (e: React.TouchEvent) => {
     const touch = e.touches[0];
-    const newRating = getRatingFromTouch(touch.clientX);
-    setRating(newRating);
-  };
+    if (!touch) return;
 
-  const handleTouchMove = (e: React.TouchEvent) => {
-    const touch = e.touches[0];
-    const newRating = getRatingFromTouch(touch.clientX);
+    const newRating = getRatingFromTouch(touch.clientX, touch.clientY);
+    if (newRating === null) return;
+
     setRating(newRating);
   };
 
@@ -66,6 +78,11 @@ export function ReviewForm({ alcoholInfo, photoUrl, onSave, isLoading, submitLab
 
     if (rating === 0) {
       setError("評価を選択してください");
+      return;
+    }
+
+    if (drinkingDate && drinkingDate > today) {
+      setError("未来の日付は選択できません");
       return;
     }
 
@@ -145,6 +162,7 @@ export function ReviewForm({ alcoholInfo, photoUrl, onSave, isLoading, submitLab
           id="drinkingDate"
           type="date"
           value={drinkingDate}
+          max={today}
           onChange={(e) => setDrinkingDate(e.target.value)}
           className="w-full px-4 py-3 rounded-lg bg-muted border border-border focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
         />
@@ -157,14 +175,19 @@ export function ReviewForm({ alcoholInfo, photoUrl, onSave, isLoading, submitLab
         </label>
         <div
           ref={starsContainerRef}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
+          role="radiogroup"
+          aria-label="評価"
+          onTouchStart={handleTouch}
+          onTouchMove={handleTouch}
           className="flex touch-none select-none"
         >
           {[1, 2, 3, 4, 5].map((star) => (
             <button
               key={star}
               type="button"
+              role="radio"
+              aria-checked={star === rating}
+              aria-label={`${star}点`}
               onClick={() => setRating(star)}
               className={`text-3xl px-2 py-1 transition-transform hover:scale-110 active:scale-95 ${
                 star <= rating ? "text-gold" : "text-border"

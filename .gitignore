@@ -58,3 +58,4 @@ test_images/
 
 # Test documents with credentials
 docs/tests/sharing-feature.md
+supabase/.temp/

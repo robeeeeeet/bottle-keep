@@ -75,29 +75,42 @@ export function InstallPrompt() {
     };
   }, [isIOS, isStandalone]);
 
+  const handleDismiss = () => {
+    setShowPrompt(false);
+    localStorage.setItem("pwa-install-dismissed", new Date().toISOString());
+  };
+
   const handleInstall = async () => {
     if (!deferredPrompt) return;
 
     await deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
 
-    if (outcome === "accepted") {
+    setDeferredPrompt(null);
+    if (outcome === "dismissed") {
+      // 却下時は非表示設定を記録し、バナーを再表示しないようにする
+      handleDismiss();
+    } else {
       setShowPrompt(false);
     }
-    setDeferredPrompt(null);
   };
 
-  const handleDismiss = () => {
-    setShowPrompt(false);
-    localStorage.setItem("pwa-install-dismissed", new Date().toISOString());
-  };
+  // インストール完了時（ホーム画面追加後）にバナーを消す
+  useEffect(() => {
+    const handleAppInstalled = () => {
+      setShowPrompt(false);
+      setDeferredPrompt(null);
+    };
+    window.addEventListener("appinstalled", handleAppInstalled);
+    return () => window.removeEventListener("appinstalled", handleAppInstalled);
+  }, []);
 
   // 表示しない条件
   if (!showPrompt || isStandalone) return null;
 
   return (
-    <div className="fixed bottom-24 left-4 right-4 z-50 animate-in slide-in-from-bottom-4 fade-in duration-300">
-      <div className="relative overflow-hidden rounded-xl shadow-lg">
+    <div className="fixed bottom-24 left-4 right-4 z-40 pointer-events-none animate-in slide-in-from-bottom-4 fade-in duration-300">
+      <div className="relative overflow-hidden rounded-xl shadow-lg pointer-events-auto">
         {/* 背景グラデーション */}
         <div className="absolute inset-0 bg-gradient-to-br from-primary via-primary to-primary-dark" />
 

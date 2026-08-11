@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { updatePassword } from "../actions/auth";
 import { createClient } from "@/lib/supabase/client";
 
@@ -10,7 +9,6 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isValidSession, setIsValidSession] = useState<boolean | null>(null);
-  const router = useRouter();
 
   useEffect(() => {
     // セッションの確認（パスワードリセットリンクからのリダイレクト後）

@@ -18,6 +18,7 @@ const navItems = [
         strokeLinecap="round"
         strokeLinejoin="round"
         className="w-6 h-6"
+        aria-hidden="true"
       >
         {/* 棚板 */}
         <path d="M3 8h18" />
@@ -45,6 +46,7 @@ const navItems = [
         strokeLinecap="round"
         strokeLinejoin="round"
         className="w-6 h-6"
+        aria-hidden="true"
       >
         {/* 徳利 */}
         <path d="M9 6c0-1 1-2 3-2s3 1 3 2" />
@@ -69,6 +71,7 @@ const navItems = [
         strokeLinecap="round"
         strokeLinejoin="round"
         className="w-6 h-6"
+        aria-hidden="true"
       >
         {/* 左の人 */}
         <circle cx="7" cy="7" r="2" />
@@ -88,14 +91,19 @@ export function BottomNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 nav-japanese pb-[env(safe-area-inset-bottom)]">
+    <nav
+      aria-label="メインナビゲーション"
+      className="fixed bottom-0 left-0 right-0 z-50 nav-japanese pb-[env(safe-area-inset-bottom)]"
+    >
       <div className="flex justify-around items-center h-16">
         {navItems.map((item) => {
-          const isActive = pathname.startsWith(item.href);
+          const isActive =
+            pathname === item.href || pathname.startsWith(item.href + "/");
           return (
             <Link
               key={item.href}
               href={item.href}
+              aria-current={isActive ? "page" : undefined}
               className={`
                 relative flex flex-col items-center justify-center w-full h-full gap-1
                 transition-all duration-300

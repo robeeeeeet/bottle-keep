@@ -19,7 +19,7 @@ export default function ForgotPasswordPage() {
       setError(result.error);
       setIsLoading(false);
     } else if (result?.success) {
-      setEmailSent(result.email);
+      setEmailSent(result.email ?? "");
       setIsLoading(false);
     }
   }

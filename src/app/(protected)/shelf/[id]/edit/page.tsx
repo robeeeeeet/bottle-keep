@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { EditForm } from "../components/edit-form";
 import type { CollectionEntryWithAlcohol } from "@/types/database.types";
@@ -12,7 +12,17 @@ export default async function EditPage({ params }: Props) {
   const { id } = await params;
   const supabase = await createClient();
 
+  // 現在のユーザーをJWTからローカル取得（Authサーバーへの往復なし）
+  const { data: claimsData } = await supabase.auth.getClaims();
+  const currentUserId = claimsData?.claims.sub;
+
+  // 未認証時はログインへ
+  if (!currentUserId) {
+    redirect("/login");
+  }
+
   // コレクションエントリを取得（alcohols を JOIN）
+  // 自分のエントリのみ編集可能（共有された他人のエントリは編集不可）
   const { data: entry, error } = await supabase
     .from("collection_entries")
     .select(
@@ -37,7 +47,8 @@ export default async function EditPage({ params }: Props) {
     `
     )
     .eq("id", id)
-    .single();
+    .eq("user_id", currentUserId)
+    .maybeSingle();
 
   if (error || !entry) {
     notFound();

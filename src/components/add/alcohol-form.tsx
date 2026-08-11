@@ -3,7 +3,9 @@
 import { useState } from "react";
 
 type Props = {
-  onSubmit: (name: string, type: string) => void;
+  onSubmit: (name: string, type: string) => Promise<void>;
+  initialName?: string;
+  initialType?: string;
 };
 
 const ALCOHOL_TYPES = [
@@ -20,9 +22,13 @@ const ALCOHOL_TYPES = [
   { value: "その他", label: "その他" },
 ];
 
-export function AlcoholForm({ onSubmit }: Props) {
-  const [name, setName] = useState("");
-  const [type, setType] = useState("");
+export function AlcoholForm({
+  onSubmit,
+  initialName = "",
+  initialType = "",
+}: Props) {
+  const [name, setName] = useState(initialName);
+  const [type, setType] = useState(initialType);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,10 +44,10 @@ export function AlcoholForm({ onSubmit }: Props) {
     setError(null);
 
     try {
-      onSubmit(name.trim(), type);
+      await onSubmit(name.trim(), type);
     } catch (err) {
       console.error("Form error:", err);
-      setError("エラーが発生しました");
+      setError(err instanceof Error ? err.message : "エラーが発生しました");
       setLoading(false);
     }
   };

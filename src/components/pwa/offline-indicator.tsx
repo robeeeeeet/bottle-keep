@@ -67,16 +67,22 @@ export function OfflineIndicator() {
 
   return (
     <div
-      className={`fixed top-0 left-0 right-0 z-50 py-2 px-4 text-center text-sm font-medium transition-colors ${
+      role="status"
+      aria-live="polite"
+      className={`fixed left-0 right-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-40 py-2 px-4 text-center text-sm font-medium transition-colors ${
         isOnline
           ? "bg-accent text-accent-foreground"
           : "bg-gold text-primary"
       }`}
     >
       {isOnline ? (
-        <span>✓ オンラインに復帰しました</span>
+        <span>
+          <span aria-hidden="true">✓</span> オンラインに復帰しました
+        </span>
       ) : (
-        <span>⚠ オフラインです - 一部機能が制限されます</span>
+        <span>
+          <span aria-hidden="true">⚠</span> オフラインです - 一部機能が制限されます
+        </span>
       )}
     </div>
   );

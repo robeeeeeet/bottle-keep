@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Spinner } from "@/components/ui/spinner";
 
 type Props = {
@@ -18,6 +18,8 @@ export function DeleteModal({
   onCancel,
   isDeleting,
 }: Props) {
+  const cancelButtonRef = useRef<HTMLButtonElement>(null);
+
   // モーダル表示中はスクロールを無効化
   useEffect(() => {
     if (isOpen) {
@@ -30,6 +32,33 @@ export function DeleteModal({
     };
   }, [isOpen]);
 
+  // 初期フォーカスをキャンセルボタンへ移し、閉じたら起点の要素へ戻す
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    cancelButtonRef.current?.focus();
+
+    return () => {
+      previouslyFocused?.focus?.();
+    };
+  }, [isOpen]);
+
+  // Escキーで閉じる（削除処理中は無効）
+  useEffect(() => {
+    if (!isOpen || isDeleting) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onCancel();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, isDeleting, onCancel]);
+
   if (!isOpen) return null;
 
   return (
@@ -41,7 +70,12 @@ export function DeleteModal({
       />
 
       {/* モーダル */}
-      <div className="relative bg-background rounded-2xl shadow-xl mx-4 w-full max-w-sm animate-in zoom-in-95 duration-200">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="deleteModalTitle"
+        className="relative bg-background rounded-2xl shadow-xl mx-4 w-full max-w-sm animate-in zoom-in-95 duration-200"
+      >
         <div className="p-6">
           {/* 警告アイコン */}
           <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-100 flex items-center justify-center">
@@ -61,7 +95,10 @@ export function DeleteModal({
           </div>
 
           {/* タイトル */}
-          <h2 className="text-lg font-bold text-center text-foreground mb-2">
+          <h2
+            id="deleteModalTitle"
+            className="text-lg font-bold text-center text-foreground mb-2"
+          >
             {alcoholName}を削除しますか？
           </h2>
 
@@ -75,6 +112,7 @@ export function DeleteModal({
           {/* ボタン */}
           <div className="flex gap-3">
             <button
+              ref={cancelButtonRef}
               type="button"
               onClick={onCancel}
               disabled={isDeleting}

@@ -1,8 +1,9 @@
 import Image from "next/image";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { logout } from "@/app/(auth)/actions/auth";
 import { HeaderActions } from "@/components/layout/header-actions";
+import { LogoutButton } from "./_components/logout-button";
 import { ShelfFilter } from "./_components/shelf-filter";
 
 // コレクションエントリの型定義
@@ -84,6 +85,24 @@ type SearchParams = {
   minRating?: string;
 };
 
+// ソート可能なカラム（不正な値をPostgRESTに渡すと400になるためホワイトリストで検証）
+const SORT_FIELDS = ["created_at", "rating", "drinking_date"] as const;
+type SortField = (typeof SORT_FIELDS)[number];
+
+function parseSortField(value: string | undefined): SortField {
+  return SORT_FIELDS.includes(value as SortField)
+    ? (value as SortField)
+    : "created_at";
+}
+
+// 評価フィルタは1〜5の整数のみ許可（それ以外はフィルタなし扱い）
+function parseMinRating(value: string | undefined): number | null {
+  if (!value) return null;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 5) return null;
+  return parsed;
+}
+
 export default async function ShelfPage({
   searchParams,
 }: {
@@ -96,11 +115,16 @@ export default async function ShelfPage({
   const { data: claimsData } = await supabase.auth.getClaims();
   const currentUserId = claimsData?.claims.sub;
 
+  // 未認証時はuuidが空になりクエリが失敗するのでログインへ
+  if (!currentUserId) {
+    redirect("/login");
+  }
+
   // パラメータのデフォルト値
-  const sortField = params.sort || "created_at";
-  const sortOrder = params.order !== "asc"; // デフォルトはdesc（ascending: false）
+  const sortField = parseSortField(params.sort);
+  const ascending = params.order === "asc"; // デフォルトはdesc（ascending: false）
   const filterType = params.type || "";
-  const minRating = params.minRating ? parseInt(params.minRating) : null;
+  const minRating = parseMinRating(params.minRating);
 
   // フィルタが適用されているか
   const hasFilters = filterType !== "" || minRating !== null;
@@ -116,7 +140,7 @@ export default async function ShelfPage({
       memo,
       user_id,
       alcohol_id,
-      alcohols (
+      alcohols!inner (
         id,
         name,
         type,
@@ -137,14 +161,11 @@ export default async function ShelfPage({
     query = query.eq("alcohols.type", filterType);
   }
 
-  // 評価フィルタ
-  if (minRating !== null) {
-    query = query.gte("rating", minRating);
-  }
+  // 評価フィルタはグループ化後に「そのお酒の最高評価」で適用するためDBでは絞らない
 
   // ソート
   query = query.order(sortField, {
-    ascending: sortOrder,
+    ascending,
     nullsFirst: false,
   });
 
@@ -153,13 +174,19 @@ export default async function ShelfPage({
     supabase
       .from("profiles")
       .select("is_admin")
-      .eq("id", currentUserId || "")
+      .eq("id", currentUserId)
       .single(),
     query,
   ]);
 
+  // 取得に失敗した場合は空状態と誤認させず、error.tsxに拾わせる
+  if (entriesResult.error) {
+    throw entriesResult.error;
+  }
+
   const isAdmin = profileResult.data?.is_admin || false;
-  const entries = entriesResult.data as CollectionEntry[] | null;
+  // PostgRESTの型推論は埋め込みリソースを配列とみなすため unknown 経由でキャスト
+  const entries = entriesResult.data as unknown as CollectionEntry[] | null;
 
   // alcohol_idでグループ化
   const groupedAlcohols: GroupedAlcohol[] = [];
@@ -201,24 +228,29 @@ export default async function ShelfPage({
       }
     }
 
-    // Mapから配列に変換
+    // Mapから配列に変換（評価フィルタはお酒ごとの最高評価で絞る）
     for (const group of alcoholMap.values()) {
+      if (minRating !== null && group.maxRating < minRating) {
+        continue;
+      }
       groupedAlcohols.push(group);
     }
 
     // 評価順の場合は最高評価でソート
     if (sortField === "rating") {
       groupedAlcohols.sort((a, b) =>
-        sortOrder ? a.maxRating - b.maxRating : b.maxRating - a.maxRating
+        ascending ? a.maxRating - b.maxRating : b.maxRating - a.maxRating
       );
     }
   }
 
-  // ユニークなお酒の数をカウント
+  // ユニークなお酒の数と表示中のレビューをカウント
   const uniqueAlcoholCount = groupedAlcohols.length;
-  const totalEntryCount = entries?.length || 0;
-  const hasFriendEntries = totalEntryCount > uniqueAlcoholCount ||
-    (entries?.some(e => e.user_id !== currentUserId) ?? false);
+  const visibleEntries = groupedAlcohols.flatMap((group) => group.entries);
+  const totalEntryCount = visibleEntries.length;
+  const hasFriendEntries = visibleEntries.some(
+    (e) => e.user_id !== currentUserId
+  );
 
   return (
     <div className="min-h-screen relative">
@@ -270,27 +302,7 @@ export default async function ShelfPage({
               </Link>
             )}
             <HeaderActions />
-            <form action={logout}>
-              <button
-                type="submit"
-                className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors px-2 py-2 rounded-lg hover:bg-muted"
-                title="ログアウト"
-              >
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={1.5}
-                    d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                  />
-                </svg>
-              </button>
-            </form>
+            <LogoutButton />
           </div>
         </div>
       </header>

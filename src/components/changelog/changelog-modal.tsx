@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useId } from "react";
 
 // 現在のバージョン（更新時にここを変更）
 const CURRENT_VERSION = "2026.04.05";
@@ -28,10 +28,23 @@ const STORAGE_KEY = "bottle-keep-changelog-version";
 
 export function ChangelogModal() {
   const [isOpen, setIsOpen] = useState(false);
+  const titleId = useId();
+
+  const handleClose = () => {
+    // バージョンを保存して閉じる
+    localStorage.setItem(STORAGE_KEY, CURRENT_VERSION);
+    setIsOpen(false);
+  };
 
   useEffect(() => {
     // localStorageから最後に見たバージョンを取得
     const lastSeenVersion = localStorage.getItem(STORAGE_KEY);
+
+    // 初回訪問（キー未設定）の場合は現行バージョンをシードし、表示しない
+    if (lastSeenVersion === null) {
+      localStorage.setItem(STORAGE_KEY, CURRENT_VERSION);
+      return;
+    }
 
     // 現在のバージョンと異なる場合は表示
     if (lastSeenVersion !== CURRENT_VERSION) {
@@ -39,11 +52,25 @@ export function ChangelogModal() {
     }
   }, []);
 
-  const handleClose = () => {
-    // バージョンを保存して閉じる
-    localStorage.setItem(STORAGE_KEY, CURRENT_VERSION);
-    setIsOpen(false);
-  };
+  // Escキーで閉じる & 表示中は背景スクロールをロック
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        handleClose();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -56,13 +83,18 @@ export function ChangelogModal() {
       />
 
       {/* モーダル */}
-      <div className="relative bg-background rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden animate-in zoom-in-95 fade-in duration-200">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="relative bg-background rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden animate-in zoom-in-95 fade-in duration-200"
+      >
         {/* ヘッダー */}
         <div className="bg-gradient-to-br from-primary/20 to-gold/20 px-6 py-5 text-center border-b border-border">
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-primary/10 mb-3">
             <span className="text-3xl">🎉</span>
           </div>
-          <h2 className="text-xl font-bold text-foreground">
+          <h2 id={titleId} className="text-xl font-bold text-foreground">
             {CHANGELOG.title}
           </h2>
           <p className="text-sm text-muted-foreground mt-1">

@@ -23,6 +23,16 @@ export function InviteSection({ currentInvite }: Props) {
   };
 
   const handleRegenerateInvite = () => {
+    if (isPending) return;
+    // 再生成すると配布済みの旧コードが無効になるため確認する
+    const confirmed = window.confirm(
+      "新しい招待コードを生成します。\n\n" +
+        "・現在のコードは無効になります\n" +
+        "・既に共有した相手はそのコードで参加できなくなります\n\n" +
+        "再生成しますか？"
+    );
+    if (!confirmed) return;
+
     setError(null);
     startTransition(async () => {
       const result = await regenerateInvite();
@@ -67,7 +77,10 @@ export function InviteSection({ currentInvite }: Props) {
       <h2 className="text-lg font-bold text-foreground mb-4">招待コード</h2>
 
       {error && (
-        <div className="mb-4 p-3 rounded-lg bg-vermilion/10 border border-vermilion/20">
+        <div
+          role="alert"
+          className="mb-4 p-3 rounded-lg bg-vermilion/10 border border-vermilion/20"
+        >
           <p className="text-sm text-vermilion">{error}</p>
         </div>
       )}
@@ -83,7 +96,11 @@ export function InviteSection({ currentInvite }: Props) {
               {currentInvite.invite_code}
             </div>
             <p className="text-xs text-muted-foreground mt-2">
-              {new Date(currentInvite.created_at).toLocaleDateString("ja-JP")}に作成
+              {/* ロケール依存の日付整形はサーバー/クライアントで差異が出るため警告を抑制 */}
+              <span suppressHydrationWarning>
+                {new Date(currentInvite.created_at).toLocaleDateString("ja-JP")}
+              </span>
+              に作成
             </p>
           </div>
 
@@ -91,6 +108,7 @@ export function InviteSection({ currentInvite }: Props) {
             <button
               onClick={handleCopyCode}
               disabled={isPending}
+              aria-live="polite"
               className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary-dark transition-colors disabled:opacity-50"
             >
               {copied ? (
@@ -108,6 +126,7 @@ export function InviteSection({ currentInvite }: Props) {
             <button
               onClick={handleRegenerateInvite}
               disabled={isPending}
+              aria-label="招待コードを再生成（古いコードは無効になります）"
               className="px-4 py-3 rounded-xl bg-muted text-muted-foreground font-semibold text-sm hover:bg-muted/80 transition-colors disabled:opacity-50"
               title="新しいコードを生成（古いコードは無効になります）"
             >

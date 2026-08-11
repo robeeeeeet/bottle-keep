@@ -1,12 +1,13 @@
 import sharp from 'sharp';
-import { mkdir } from 'fs/promises';
-import { join, dirname } from 'path';
+import { mkdir, access } from 'fs/promises';
+import { join, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = join(__dirname, '..');
 
-const SOURCE = join(projectRoot, 'full-size-icon.png');
+const DEFAULT_SOURCE = join(projectRoot, 'full-size-icon.png');
+const SOURCE = process.argv[2] ? resolve(process.argv[2]) : DEFAULT_SOURCE;
 const OUTPUT_DIR = join(projectRoot, 'public');
 const ICONS_DIR = join(OUTPUT_DIR, 'icons');
 
@@ -27,12 +28,26 @@ const MASKABLE_SIZES = [
 ];
 
 async function generateIcons() {
+  // 入力画像の存在チェック
+  try {
+    await access(SOURCE);
+  } catch {
+    console.error(`エラー: 入力画像が見つかりません: ${SOURCE}`);
+    console.error('使い方: node scripts/generate-icons.mjs [入力画像パス]');
+    process.exit(1);
+  }
+
   // 出力ディレクトリ作成
   await mkdir(ICONS_DIR, { recursive: true });
 
   // 元画像を読み込み、正方形にクロップ
   const image = sharp(SOURCE);
   const metadata = await image.metadata();
+
+  if (!metadata.width || !metadata.height) {
+    console.error(`エラー: 画像サイズを取得できませんでした: ${SOURCE}`);
+    process.exit(1);
+  }
 
   const size = Math.min(metadata.width, metadata.height);
   const left = Math.floor((metadata.width - size) / 2);

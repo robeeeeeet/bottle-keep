@@ -68,6 +68,18 @@ export function ShelfFilter() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Escキーでドロップダウンを閉じる
+  useEffect(() => {
+    if (!openDropdown) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpenDropdown(null);
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [openDropdown]);
+
   // URLパラメータを更新
   const updateParams = useCallback(
     (key: string, value: string) => {
@@ -128,13 +140,15 @@ export function ShelfFilter() {
       ref={containerRef}
       className="sticky top-[73px] z-30 bg-background/95 backdrop-blur-sm border-b border-border-light px-4 py-2 overflow-visible"
     >
-      <div className="flex items-center gap-2 overflow-x-clip overflow-y-visible scrollbar-hide">
+      <div className="flex flex-wrap items-center gap-2 overflow-visible scrollbar-hide">
         {/* ソートドロップダウン */}
         <div className="relative flex-shrink-0">
           <button
             onClick={() =>
               setOpenDropdown(openDropdown === "sort" ? null : "sort")
             }
+            aria-expanded={openDropdown === "sort"}
+            aria-haspopup="listbox"
             className={`
               flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium
               border transition-all duration-200
@@ -198,6 +212,8 @@ export function ShelfFilter() {
             onClick={() =>
               setOpenDropdown(openDropdown === "type" ? null : "type")
             }
+            aria-expanded={openDropdown === "type"}
+            aria-haspopup="listbox"
             className={`
               flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium
               border transition-all duration-200
@@ -248,6 +264,8 @@ export function ShelfFilter() {
             onClick={() =>
               setOpenDropdown(openDropdown === "rating" ? null : "rating")
             }
+            aria-expanded={openDropdown === "rating"}
+            aria-haspopup="listbox"
             className={`
               flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium
               border transition-all duration-200

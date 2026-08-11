@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { compressAndConvertToBase64 } from "@/lib/image/compressor";
@@ -37,8 +37,20 @@ export function EditForm({ entry }: Props) {
   const [isDeleting, setIsDeleting] = useState(false);
   const starsContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const previewObjectUrlRef = useRef<string | null>(null);
 
   const alcoholInfo = entry.alcohols;
+
+  // プレビュー用 ObjectURL を解放
+  const releasePreviewObjectUrl = () => {
+    if (previewObjectUrlRef.current) {
+      URL.revokeObjectURL(previewObjectUrlRef.current);
+      previewObjectUrlRef.current = null;
+    }
+  };
+
+  // アンマウント時に ObjectURL を解放
+  useEffect(() => releasePreviewObjectUrl, []);
 
   // 写真選択ハンドラー
   const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -74,18 +86,21 @@ export function EditForm({ entry }: Props) {
         return;
       }
 
-      // プレビュー表示
-      const previewUrl = `data:${result.mimeType};base64,${result.base64}`;
+      // Base64 から Blob を作成
+      const dataUrl = `data:${result.mimeType};base64,${result.base64}`;
+      const response = await fetch(dataUrl);
+      const blob = await response.blob();
+
+      // プレビュー表示（巨大な dataURL ではなく ObjectURL を使う）
+      releasePreviewObjectUrl();
+      const previewUrl = URL.createObjectURL(blob);
+      previewObjectUrlRef.current = previewUrl;
       setPhotoPreview(previewUrl);
 
       // Supabase Storage にアップロード
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("ログインが必要です");
-
-      // Base64 から Blob を作成
-      const response = await fetch(previewUrl);
-      const blob = await response.blob();
 
       // ファイル名を生成
       const fileName = `${user.id}/${Date.now()}.jpg`;
@@ -105,10 +120,12 @@ export function EditForm({ entry }: Props) {
       const { data: { publicUrl } } = supabase.storage.from("photos").getPublicUrl(fileName);
 
       setPhotoUrl(publicUrl);
+      releasePreviewObjectUrl();
       setPhotoPreview(null);
     } catch (err) {
       console.error("Upload error:", err);
       setError(err instanceof Error ? err.message : "アップロードに失敗しました");
+      releasePreviewObjectUrl();
       setPhotoPreview(null);
     } finally {
       setIsUploading(false);
@@ -125,6 +142,10 @@ export function EditForm({ entry }: Props) {
 
     const rect = container.getBoundingClientRect();
     const x = clientX - rect.left;
+
+    // コンテナ外のタッチは無視
+    if (x < 0 || x > rect.width) return 0;
+
     const starWidth = rect.width / 5;
     const starNumber = Math.ceil(x / starWidth);
     return Math.max(1, Math.min(5, starNumber));
@@ -133,17 +154,21 @@ export function EditForm({ entry }: Props) {
   const handleTouchStart = (e: React.TouchEvent) => {
     const touch = e.touches[0];
     const newRating = getRatingFromTouch(touch.clientX);
-    setRating(newRating);
+    if (newRating > 0) setRating(newRating);
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
     const touch = e.touches[0];
     const newRating = getRatingFromTouch(touch.clientX);
-    setRating(newRating);
+    if (newRating > 0) setRating(newRating);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // アップロード中・保存中の二重送信を防ぐ
+    if (isSaving || isUploading) return;
+
     setError(null);
 
     if (rating === 0) {
@@ -157,7 +182,6 @@ export function EditForm({ entry }: Props) {
       await updateCollection({
         entryId: entry.id,
         photoUrl,
-        oldPhotoUrl: entry.photo_url,
         drinkingDate,
         rating,
         memo,
@@ -174,7 +198,6 @@ export function EditForm({ entry }: Props) {
     try {
       await deleteCollection({
         entryId: entry.id,
-        photoUrl: entry.photo_url,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "削除に失敗しました");
@@ -197,12 +220,22 @@ export function EditForm({ entry }: Props) {
                 </div>
               ) : photoPreview || photoUrl ? (
                 <div className="w-20 h-20 relative rounded-lg overflow-hidden border border-border">
-                  <Image
-                    src={photoPreview || photoUrl || ""}
-                    alt={alcoholInfo?.name || "お酒の写真"}
-                    fill
-                    className="object-cover"
-                  />
+                  {photoPreview ? (
+                    // 選択直後のプレビューは ObjectURL のため next/image を使わない
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={photoPreview}
+                      alt={alcoholInfo?.name || "お酒の写真"}
+                      className="absolute inset-0 w-full h-full object-cover"
+                    />
+                  ) : (
+                    <Image
+                      src={photoUrl || ""}
+                      alt={alcoholInfo?.name || "お酒の写真"}
+                      fill
+                      className="object-cover"
+                    />
+                  )}
                   {/* 変更オーバーレイ */}
                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity flex items-center justify-center">
                     <svg
@@ -299,6 +332,7 @@ export function EditForm({ entry }: Props) {
             id="drinkingDate"
             type="date"
             value={drinkingDate}
+            max={getLocalDateString()}
             onChange={(e) => setDrinkingDate(e.target.value)}
             className="w-full px-4 py-3 rounded-lg bg-muted border border-border focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
           />
@@ -306,19 +340,25 @@ export function EditForm({ entry }: Props) {
 
         {/* 星評価（タップ＆スライド対応） */}
         <div>
-          <label className="block text-sm font-medium mb-2">
+          <label id="ratingLabel" className="block text-sm font-medium mb-2">
             評価 <span className="text-red-500">*</span>
           </label>
           <div
             ref={starsContainerRef}
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
+            role="radiogroup"
+            aria-labelledby="ratingLabel"
+            aria-required="true"
             className="flex touch-none select-none"
           >
             {[1, 2, 3, 4, 5].map((star) => (
               <button
                 key={star}
                 type="button"
+                role="radio"
+                aria-checked={star === rating}
+                aria-label={`${star}点`}
                 onClick={() => setRating(star)}
                 className={`text-3xl px-2 py-1 transition-transform hover:scale-110 active:scale-95 ${
                   star <= rating ? "text-gold" : "text-border"
@@ -353,7 +393,7 @@ export function EditForm({ entry }: Props) {
         {/* 保存ボタン */}
         <button
           type="submit"
-          disabled={isSaving || rating === 0}
+          disabled={isSaving || isUploading || rating === 0}
           className="w-full py-3 px-4 rounded-lg bg-gradient-to-b from-primary to-primary/90 text-primary-foreground font-medium disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm"
         >
           {isSaving ? (
@@ -361,6 +401,8 @@ export function EditForm({ entry }: Props) {
               <Spinner />
               保存中...
             </>
+          ) : isUploading ? (
+            "写真アップロード中..."
           ) : (
             "変更を保存"
           )}

@@ -38,7 +38,7 @@ function SignupForm() {
       setError(result.error);
       setIsLoading(false);
     } else if (result?.emailConfirmationRequired) {
-      setEmailSent(result.email);
+      setEmailSent(result.email ?? "");
       setIsLoading(false);
     }
   }

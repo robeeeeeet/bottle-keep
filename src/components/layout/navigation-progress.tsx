@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 
 export function NavigationProgress() {
@@ -23,6 +23,7 @@ export function NavigationProgress() {
 
   useEffect(() => {
     let progressTimer: NodeJS.Timeout;
+    let failSafeTimer: NodeJS.Timeout;
 
     if (isNavigating) {
       setProgress(10);
@@ -32,21 +33,40 @@ export function NavigationProgress() {
           return prev + Math.random() * 10;
         });
       }, 200);
+
+      // フェイルセーフ: 何らかの理由でpathnameが変化しない場合に90%で固着しないよう強制リセット
+      failSafeTimer = setTimeout(() => {
+        setIsNavigating(false);
+      }, 8000);
     }
 
     return () => {
       if (progressTimer) clearInterval(progressTimer);
+      if (failSafeTimer) clearTimeout(failSafeTimer);
     };
   }, [isNavigating]);
 
   // リンククリックを監視
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
+      // 修飾キー付き・左クリック以外・すでにpreventDefaultされたクリックは対象外
+      // （新規タブで開く等で進捗が90%のまま固着するのを防ぐ）
+      if (
+        e.defaultPrevented ||
+        e.button !== 0 ||
+        e.metaKey ||
+        e.ctrlKey ||
+        e.shiftKey ||
+        e.altKey
+      ) {
+        return;
+      }
+
       const target = e.target as HTMLElement;
       const anchor = target.closest("a");
 
       if (
-        anchor &&
+        anchor instanceof HTMLAnchorElement &&
         anchor.href &&
         anchor.href.startsWith(window.location.origin) &&
         !anchor.href.includes("#") &&
@@ -66,7 +86,14 @@ export function NavigationProgress() {
   if (progress === 0) return null;
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-[100] h-0.5">
+    <div
+      className="fixed top-0 left-0 right-0 z-[100] h-0.5"
+      role="progressbar"
+      aria-label="ページ読み込み中"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(progress)}
+    >
       <div
         className="h-full bg-gradient-to-r from-gold via-accent to-gold transition-all duration-300 ease-out"
         style={{

@@ -21,10 +21,11 @@ const geistMono = Geist_Mono({
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
   viewportFit: "cover",
-  themeColor: "#2a1810", // 木目の暗い色
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#faf8f5" },
+    { media: "(prefers-color-scheme: dark)", color: "#2a1810" },
+  ],
 };
 
 export const metadata: Metadata = {
@@ -55,12 +56,20 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const supabaseOrigin = process.env.NEXT_PUBLIC_SUPABASE_URL
+    ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).origin
+    : undefined;
+
   return (
     <html lang="ja" suppressHydrationWarning>
       <head>
         {/* Supabase への事前接続（画像読み込み高速化） */}
-        <link rel="preconnect" href="https://ceygoqxqwpcitjswwvlq.supabase.co" />
-        <link rel="dns-prefetch" href="https://ceygoqxqwpcitjswwvlq.supabase.co" />
+        {supabaseOrigin && (
+          <>
+            <link rel="preconnect" href={supabaseOrigin} />
+            <link rel="dns-prefetch" href={supabaseOrigin} />
+          </>
+        )}
       </head>
       <body
         className={`${notoSerifJP.variable} ${geistMono.variable} antialiased`}

@@ -1,23 +1,27 @@
 # Bottle Keep - お酒コレクションアプリ実装計画
 
 ## 技術スタック
-- **Frontend**: Next.js 14 (App Router)
+- **Frontend**: Next.js 16 (App Router)
 - **Database/Auth/Storage**: Supabase (PostgreSQL + RLS + Auth + Storage)
-- **LLM**: Gemini API (画像認識 + 情報取得)
+- **LLM**: Gemini 2.5 Flash (画像認識 + 情報取得)
 - **PWA**: next-pwa（ホームに追加対応）
 - **Hosting**: Vercel
 
 ### アーキテクチャ
 ```
 [ブラウザ/PWA] <---> [Vercel (Next.js)] <---> [Supabase]
-                            |
-                            v
-                      [Gemini API]
+                                                    |
+                                                    v
+                                          [Supabase Edge Function]
+                                                    |
+                                                    v
+                                              [Gemini API]
 ```
 
 - **バックエンドレス構成**: 専用のバックエンドサーバーは不要
 - **Supabase直接アクセス**: 認証・DB・ストレージはフロントエンドから直接呼び出し
-- **API Routes**: Gemini APIキーを隠すためのプロキシとしてのみ使用
+- **Gemini連携**: APIキーを隠すため、Supabase Edge Function（`analyze-alcohol`）経由で呼び出し
+- **API Routes**: 画像フォーマット変換（HEIC→JPEG等、`api/convert-image`）など、Next.jsサーバー側処理にのみ使用
 - **RLS**: データベース側でアクセス制御（サーバーロジック不要）
 
 ---
@@ -104,10 +108,11 @@ app/
 │   ├── shared/page.tsx            # 共有管理
 │   └── shared/[userId]/page.tsx   # 共有された棚の閲覧
 ├── api/
-│   ├── alcohols/analyze/route.ts  # Gemini画像分析
-│   ├── collection/route.ts        # コレクションCRUD
-│   └── shares/merged/route.ts     # マージされた棚の取得
+│   └── convert-image/route.ts     # 画像フォーマット変換（HEIC→JPEG等）
 └── middleware.ts                  # 認証ミドルウェア
+
+supabase/functions/
+└── analyze-alcohol/               # Gemini 2.5 Flashによる画像分析（Edge Function）
 
 components/
 ├── layout/
@@ -138,7 +143,7 @@ next.config.js                     # next-pwa設定
 ## 実装フェーズ
 
 ### Phase 1: 基盤構築 + PWA設定
-1. Next.js 14 + Tailwind CSS セットアップ
+1. Next.js 16 + Tailwind CSS セットアップ
 2. **next-pwa 設定、manifest.json、アイコン作成**
 3. **モバイルファーストのビューポート設定**
 4. Supabase プロジェクト作成・接続
@@ -199,7 +204,8 @@ const withPWA = require('next-pwa')({
 - middlewareでトークンリフレッシュ
 
 ### Gemini API
-- Gemini 2.0 Flash を使用（コスト効率良好）
+- Gemini 2.5 Flash を使用（コスト効率良好）
+- Supabase Edge Function（`analyze-alcohol`）経由で呼び出し、APIキーはサーバー側で管理
 - 構造化JSON出力でパース
 - 画像から: 名前、種類、産地、度数、特徴を抽出
 
@@ -216,13 +222,13 @@ const withPWA = require('next-pwa')({
 1. GitHubリポジトリをVercelに接続
 2. 環境変数を設定:
    - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `GEMINI_API_KEY`
+   - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+   - （`GEMINI_API_KEY` はVercelではなくSupabase Edge Functionのシークレットとして設定）
 3. デプロイ実行
 
 ### Vercelの利点
 - Next.js との最適な統合
-- API Routes が Edge/Serverless Functions として自動デプロイ
+- API Routes（画像フォーマット変換など）が Edge/Serverless Functions として自動デプロイ
 - プレビューデプロイ（PRごとに自動生成）
 - 無料枠で十分運用可能（個人利用の場合）
 

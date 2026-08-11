@@ -6,58 +6,134 @@
 import { NextRequest, NextResponse } from "next/server";
 import heicConvert from "heic-convert";
 import sharp from "sharp";
+import { createClient } from "@/lib/supabase/server";
+
+// 重い変換処理のため実行時間の上限を明示
+export const maxDuration = 30;
 
 // 変換設定
 const MAX_WIDTH = 1920;
 const MAX_HEIGHT = 1920;
 const JPEG_QUALITY = 80;
 
-// HEIC/HEIF形式かどうかを判定
-function isHeicFile(file: File): boolean {
-  const ext = file.name.toLowerCase();
-  return ext.endsWith(".heic") || ext.endsWith(".heif");
-}
+// アップロード可能な最大サイズ（10MB）
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
-// その他のサーバー変換が必要な形式
-function needsSharpConversion(file: File): boolean {
-  const ext = file.name.toLowerCase();
-  return [".avif", ".tiff", ".tif"].some((e) => ext.endsWith(e));
+// マジックナンバーから判定する対応形式
+type SupportedFormat = "heic" | "avif" | "tiff";
+
+// ISO BMFF (HEIF系) のブランド
+const HEIC_BRANDS = [
+  "heic",
+  "heix",
+  "heim",
+  "heis",
+  "hevc",
+  "hevx",
+  "hevm",
+  "hevs",
+  "mif1",
+  "msf1",
+];
+const AVIF_BRANDS = ["avif", "avis"];
+
+/**
+ * ファイル先頭バイト（マジックナンバー）から形式を判定する
+ * 拡張子は偽装できるため、必ずバイト列で検証する
+ */
+function detectFormat(buffer: Buffer): SupportedFormat | null {
+  if (buffer.length < 12) return null;
+
+  // TIFF: "II*\0"（リトルエンディアン） / "MM\0*"（ビッグエンディアン）
+  if (
+    (buffer[0] === 0x49 &&
+      buffer[1] === 0x49 &&
+      buffer[2] === 0x2a &&
+      buffer[3] === 0x00) ||
+    (buffer[0] === 0x4d &&
+      buffer[1] === 0x4d &&
+      buffer[2] === 0x00 &&
+      buffer[3] === 0x2a)
+  ) {
+    return "tiff";
+  }
+
+  // ISO BMFF: 4バイトのボックスサイズ + "ftyp" + メジャーブランド + 互換ブランド
+  if (buffer.toString("ascii", 4, 8) === "ftyp") {
+    const declaredSize = buffer.readUInt32BE(0);
+    const boxEnd = Math.min(
+      declaredSize >= 16 ? declaredSize : 64,
+      64,
+      buffer.length
+    );
+
+    const brands: string[] = [];
+    for (let offset = 8; offset + 4 <= boxEnd; offset += 4) {
+      brands.push(buffer.toString("ascii", offset, offset + 4).toLowerCase());
+    }
+
+    // AVIF は mif1 を含むことがあるため先に判定する
+    if (brands.some((brand) => AVIF_BRANDS.includes(brand))) return "avif";
+    if (brands.some((brand) => HEIC_BRANDS.includes(brand))) return "heic";
+  }
+
+  return null;
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const formData = await request.formData();
-    const file = formData.get("image") as File;
+    // 認証必須（重い変換処理を未認証で叩けないようにする）
+    const supabase = await createClient();
+    const { data: claimsData } = await supabase.auth.getClaims();
+    const userId = claimsData?.claims.sub;
 
-    if (!file) {
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: "認証が必要です" },
+        { status: 401 }
+      );
+    }
+
+    const formData = await request.formData();
+    const file = formData.get("image");
+
+    if (!(file instanceof File)) {
       return NextResponse.json(
         { success: false, error: "画像ファイルが必要です" },
         { status: 400 }
       );
     }
 
-    // ファイルサイズチェック（20MB以下）
-    if (file.size > 20 * 1024 * 1024) {
+    // ファイルサイズチェック（10MB以下）
+    if (file.size > MAX_FILE_SIZE) {
       return NextResponse.json(
-        { success: false, error: "ファイルサイズは20MB以下にしてください" },
+        { success: false, error: "ファイルサイズは10MB以下にしてください" },
         { status: 400 }
       );
     }
-
-    console.log(
-      `[convert-image] Converting: ${file.name} (${file.type}, ${(file.size / 1024 / 1024).toFixed(2)}MB)`
-    );
 
     // ファイルをバッファに変換
     const arrayBuffer = await file.arrayBuffer();
     const inputBuffer = Buffer.from(arrayBuffer);
 
+    // 拡張子ではなく先頭バイトで形式を判定
+    const format = detectFormat(inputBuffer);
+
+    if (!format) {
+      return NextResponse.json(
+        { success: false, error: "この形式は変換不要です" },
+        { status: 400 }
+      );
+    }
+
+    console.log(
+      `[convert-image] Converting: ${format} (${(file.size / 1024 / 1024).toFixed(2)}MB)`
+    );
+
     let jpegBuffer: Buffer;
 
-    if (isHeicFile(file)) {
+    if (format === "heic") {
       // HEIC/HEIF → heic-convert で JPEG に変換
-      console.log("[convert-image] Using heic-convert for HEIC file");
-
       const convertedBuffer = await heicConvert({
         buffer: inputBuffer,
         format: "JPEG",
@@ -76,10 +152,8 @@ export async function POST(request: NextRequest) {
         })
         .jpeg({ quality: JPEG_QUALITY })
         .toBuffer();
-    } else if (needsSharpConversion(file)) {
-      // その他の形式 → Sharp で変換
-      console.log("[convert-image] Using sharp for conversion");
-
+    } else {
+      // AVIF / TIFF → Sharp で変換
       jpegBuffer = await sharp(inputBuffer)
         .rotate()
         .resize(MAX_WIDTH, MAX_HEIGHT, {
@@ -88,11 +162,6 @@ export async function POST(request: NextRequest) {
         })
         .jpeg({ quality: JPEG_QUALITY })
         .toBuffer();
-    } else {
-      return NextResponse.json(
-        { success: false, error: "この形式は変換不要です" },
-        { status: 400 }
-      );
     }
 
     // Base64に変換
@@ -112,10 +181,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("[convert-image] Error:", error);
     return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : "変換に失敗しました",
-      },
+      { success: false, error: "変換に失敗しました" },
       { status: 500 }
     );
   }

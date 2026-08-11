@@ -10,10 +10,17 @@ type Props = {
 export function FriendsSection({ friends }: Props) {
   const [isPending, startTransition] = useTransition();
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const handleRemoveFriend = (shareId: string) => {
+    setError(null);
     startTransition(async () => {
-      await removeFriend(shareId);
+      const result = await removeFriend(shareId);
+      if (result.error) {
+        // 失敗時は確認状態を維持して再試行できるようにする
+        setError(result.error);
+        return;
+      }
       setConfirmingId(null);
     });
   };
@@ -28,6 +35,15 @@ export function FriendsSection({ friends }: Props) {
           </span>
         )}
       </h2>
+
+      {error && (
+        <div
+          role="alert"
+          className="mb-4 p-3 rounded-lg bg-vermilion/10 border border-vermilion/20"
+        >
+          <p className="text-sm text-vermilion">{error}</p>
+        </div>
+      )}
 
       {friends.length === 0 ? (
         <div className="p-6 rounded-2xl bg-muted/50 border border-border text-center">
@@ -69,7 +85,10 @@ export function FriendsSection({ friends }: Props) {
                   <div className="flex-1">
                     <p className="font-semibold text-foreground">{friendName}</p>
                     <p className="text-xs text-muted-foreground">
-                      {new Date(friend.since).toLocaleDateString("ja-JP")}
+                      {/* ロケール依存の日付整形はサーバー/クライアントで差異が出るため警告を抑制 */}
+                      <span suppressHydrationWarning>
+                        {new Date(friend.since).toLocaleDateString("ja-JP")}
+                      </span>
                       からフレンド
                     </p>
                   </div>

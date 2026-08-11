@@ -45,6 +45,19 @@
   /* シャドウカラー */
   --shadow-color: rgba(30, 77, 120, 0.08);
   --shadow-color-strong: rgba(30, 77, 120, 0.15);
+
+  /* ─────────────────────────────────────────────────────────────
+     レイヤー（z-index）指針
+     現状は各コンポーネントでTailwindのz-*クラスを直接指定しているが
+     （例: sticky header=z-40, bottom-nav=z-50, navigation-progress=z-[100]）、
+     今後新規に固定要素を追加する際は下記の階層を参考にすること。
+     既存クラスの一括置換はここでは行わない（影響範囲が大きいため）。
+     ───────────────────────────────────────────────────────────── */
+  --z-header: 40;      /* sticky header（棚一覧・詳細ページ等） */
+  --z-banner: 40;      /* インストール/オフライン等の通知バナー（headerより下、navより下） */
+  --z-nav: 50;         /* bottom-nav（画面下部の常設ナビ） */
+  --z-overlay: 60;      /* ドロップダウン等の一時的なオーバーレイ */
+  --z-modal: 100;      /* changelog-modal・navigation-progress等、最前面に出すべき要素 */
 }
 
 /* ダークモード（classベース - next-themes用） */
@@ -118,21 +131,6 @@ html.dark, .dark {
   pointer-events: none;
 }
 
-/* 和紙テクスチャ（微細なノイズ） */
-.texture-washi {
-  position: relative;
-}
-
-.texture-washi::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  opacity: 0.03;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
-  pointer-events: none;
-  z-index: 0;
-}
-
 /* 市松模様（装飾用） */
 .pattern-ichimatsu {
   background-image:
@@ -143,12 +141,6 @@ html.dark, .dark {
   background-size: 8px 8px;
   background-position: 0 0, 0 4px, 4px -4px, -4px 0px;
   opacity: 0.05;
-}
-
-/* 麻の葉模様（ヘッダー装飾用） */
-.pattern-asanoha {
-  background-image: url("data:image/svg+xml,%3Csvg width='24' height='24' viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M12 0L12 12M12 12L0 6M12 12L24 6M12 12L0 18M12 12L24 18M12 12L12 24' stroke='%231e4d78' stroke-width='0.5' fill='none' opacity='0.15'/%3E%3C/svg%3E");
-  background-size: 24px 24px;
 }
 
 /* ─────────────────────────────────────────────────────────────────
@@ -248,11 +240,6 @@ select {
 .card-tatami:active {
   transform: scale(0.98);
   box-shadow: 0 1px 4px var(--shadow-color);
-}
-
-/* 旧スタイル互換 */
-.card-accent-line {
-  border-left: 4px solid var(--primary);
 }
 
 /* ─────────────────────────────────────────────────────────────────

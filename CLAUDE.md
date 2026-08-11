@@ -10,7 +10,7 @@ Bottle Keep - お酒のコレクションを管理するモバイルファース
 
 | 項目 | 技術 |
 |------|------|
-| Frontend | Next.js 15 (App Router) |
+| Frontend | Next.js 16 (App Router) |
 | Database/Auth/Storage | Supabase (PostgreSQL + RLS + Auth + Storage) |
 | LLM | **Gemini 2.5 Flash**（画像認識 + お酒情報取得） |
 | PWA | next-pwa（ホームに追加対応） |
